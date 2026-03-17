@@ -11,6 +11,7 @@ def create_ticket(data):
         "order_id": data["order_id"],
         "buyer_name": data["buyer_name"],
         "buyer_email": data["buyer_email"],
+        "attendee_name": data.get("attendee_name", data["buyer_name"]),
         "price": float(data["price"]),
         "currency": data.get("currency", "eur"),
         "stripe_session_id": data.get("stripe_session_id"),
@@ -26,6 +27,10 @@ def create_ticket(data):
 
 def get_ticket(ticket_id):
     return db.tickets.find_one({"ticket_id": ticket_id})
+
+
+def get_ticket_by_session(stripe_session_id):
+    return db.tickets.find_one({"stripe_session_id": stripe_session_id})
 
 
 def get_tickets_by_order(order_id):

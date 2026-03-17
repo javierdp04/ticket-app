@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from app.models import ticket as ticket_model
@@ -11,15 +12,23 @@ def create_tickets(stripe_session, event, quantity):
     buyer_name = metadata.get("buyer_name", "")
     buyer_email = metadata.get("buyer_email", "")
 
+    attendee_names_raw = metadata.get("attendee_names", "")
+    try:
+        attendee_names = json.loads(attendee_names_raw)
+    except (json.JSONDecodeError, TypeError):
+        attendee_names = [buyer_name] * quantity
+
     tickets = []
     pdf_list = []
 
-    for _ in range(quantity):
+    for i in range(quantity):
+        attendee_name = attendee_names[i] if i < len(attendee_names) else buyer_name
         ticket = ticket_model.create_ticket({
             "event_id": event["event_id"],
             "order_id": order_id,
             "buyer_name": buyer_name,
             "buyer_email": buyer_email,
+            "attendee_name": attendee_name,
             "price": event["price"],
             "currency": event["currency"],
             "stripe_session_id": stripe_session.get("id"),

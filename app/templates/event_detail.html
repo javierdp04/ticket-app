@@ -19,7 +19,7 @@
     <form action="{{ url_for('checkout.create_session') }}" method="POST" class="purchase-form">
         <input type="hidden" name="event_id" value="{{ event.event_id }}">
         <div class="form-group">
-            <label for="buyer_name">Nombre completo</label>
+            <label for="buyer_name">Nombre del comprador</label>
             <input type="text" id="buyer_name" name="buyer_name" required>
         </div>
         <div class="form-group">
@@ -27,9 +27,15 @@
             <input type="email" id="buyer_email" name="buyer_email" required>
         </div>
         <div class="form-group">
+            <label for="buyer_email_confirm">Confirmar email</label>
+            <input type="email" id="buyer_email_confirm" required>
+            <span id="email-error" class="form-error" style="display:none;color:red;">Los emails no coinciden</span>
+        </div>
+        <div class="form-group">
             <label for="quantity">Cantidad de entradas</label>
             <input type="number" id="quantity" name="quantity" value="1" min="1" max="{{ available }}">
         </div>
+        <div id="attendees-container"></div>
         <button type="submit" class="btn">Comprar</button>
     </form>
     {% else %}

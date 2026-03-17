@@ -1,8 +1,9 @@
+import json
 import stripe
 from flask import current_app
 
 
-def create_checkout_session(event, buyer_name, buyer_email, quantity):
+def create_checkout_session(event, buyer_name, buyer_email, quantity, attendee_names):
     stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
     base_url = current_app.config["BASE_URL"]
 
@@ -29,6 +30,7 @@ def create_checkout_session(event, buyer_name, buyer_email, quantity):
             "buyer_name": buyer_name,
             "buyer_email": buyer_email,
             "quantity": str(quantity),
+            "attendee_names": json.dumps(attendee_names),
         },
     )
     return session

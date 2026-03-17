@@ -27,7 +27,7 @@ def generate_pdf(ticket_data, event_data, qr_image_bytes):
     c.drawString(50, y, "Datos de la entrada")
     y -= 25
     c.setFont("Helvetica", 12)
-    c.drawString(50, y, f"Comprador: {ticket_data['buyer_name']}")
+    c.drawString(50, y, f"Asistente: {ticket_data.get('attendee_name', ticket_data['buyer_name'])}")
     y -= 20
     c.drawString(50, y, f"ID Entrada: {ticket_data['ticket_id']}")
     y -= 20
