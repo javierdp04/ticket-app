@@ -10,7 +10,7 @@
     <div class="stats-grid">
         <div class="stat-card">
             <h3>Entradas vendidas</h3>
-            <p class="stat-value">{{ stats.total_sold }}</p>
+            <p class="stat-value">{{ total_sold }}</p>
         </div>
         <div class="stat-card">
             <h3>Entradas restantes</h3>
@@ -31,11 +31,37 @@
         <div class="stat-card">
             <h3>Aforo ocupado</h3>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: {{ (stats.total_sold / event.max_tickets * 100) if event.max_tickets > 0 else 0 }}%"></div>
+                <div class="progress-fill" style="width: {{ (total_sold / total_capacity * 100) if total_capacity > 0 else 0 }}%"></div>
             </div>
-            <p>{{ "%.1f"|format(stats.total_sold / event.max_tickets * 100) if event.max_tickets > 0 else 0 }}%</p>
+            <p>{{ "%.1f"|format(total_sold / total_capacity * 100) if total_capacity > 0 else 0 }}%</p>
         </div>
     </div>
+
+    {% if event.ticket_types %}
+    <h2>Desglose por tipo de entrada</h2>
+    <table class="purchases-table">
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Precio</th>
+                <th>Vendidas</th>
+                <th>Aforo</th>
+                <th>Disponibles</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tt in event.ticket_types %}
+            <tr>
+                <td>{{ tt.name }}</td>
+                <td>{{ "%.2f"|format(tt.price) }} {{ event.currency|upper }}</td>
+                <td>{{ tt.tickets_sold }}</td>
+                <td>{{ tt.max_tickets }}</td>
+                <td>{{ tt.max_tickets - tt.tickets_sold - (tt.tickets_reserved|default(0)) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
 
     <div class="scanner-info">
         <h2>PIN del escaner</h2>
@@ -51,6 +77,7 @@
             <tr>
                 <th>Nombre</th>
                 <th>Email</th>
+                <th>Tipo</th>
                 <th>Estado</th>
                 <th>Fecha</th>
             </tr>
@@ -58,8 +85,9 @@
         <tbody>
             {% for ticket in recent %}
             <tr>
-                <td>{{ ticket.buyer_name }}</td>
+                <td>{{ ticket.attendee_name|default(ticket.buyer_name) }}</td>
                 <td>{{ ticket.buyer_email }}</td>
+                <td>{{ ticket.ticket_type_name|default('General') }}</td>
                 <td><span class="status-badge status-{{ ticket.status }}">{{ ticket.status }}</span></td>
                 <td>{{ ticket.created_at }}</td>
             </tr>

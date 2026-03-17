@@ -89,8 +89,9 @@ class TestScannerValidate:
             "name": "Otro Evento",
             "date": "2026-12-01T20:00",
             "venue": "Otra Sala",
-            "price": 10.00,
-            "max_tickets": 50,
+            "ticket_types": [
+                {"name": "General", "price": 10.00, "max_tickets": 50},
+            ],
         })
         # Autenticar en el otro evento
         client.post("/scanner/auth", json={

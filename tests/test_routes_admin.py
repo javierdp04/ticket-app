@@ -71,6 +71,7 @@ class TestAdminCRUDEventos:
 
     def test_actualizar_evento(self, client, created_event):
         self._login(client)
+        tt = created_event["ticket_types"][0]
         response = client.post(
             f"/admin/event/{created_event['event_id']}/update",
             data={
@@ -78,9 +79,11 @@ class TestAdminCRUDEventos:
                 "description": "Nueva descripcion",
                 "date": "2026-09-01T20:00",
                 "venue": "Nuevo Lugar",
-                "price": "35.00",
                 "currency": "eur",
-                "max_tickets": "200",
+                "type_name[]": [tt["name"]],
+                "type_price[]": [str(tt["price"])],
+                "type_max_tickets[]": [str(tt["max_tickets"])],
+                "type_id[]": [tt["type_id"]],
             },
         )
         assert response.status_code == 302

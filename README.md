@@ -1,4 +1,4 @@
-# ticket-app -- Documentacion del Proyecto
+# Eventum Spain -- Documentacion del Proyecto
 
 ## Indice
 1. [Descripcion General](#descripcion-general)
@@ -9,27 +9,34 @@
 6. [Modulos y Funcionalidades](#modulos-y-funcionalidades)
 7. [Panel de Administracion](#panel-de-administracion)
 8. [Validacion de QR](#validacion-de-qr)
-9. [Variables de Entorno](#variables-de-entorno)
-10. [Decisiones Tomadas](#decisiones-tomadas)
-11. [Pendientes / Decisiones Abiertas](#pendientes--decisiones-abiertas)
+9. [Seguridad y Proteccion](#seguridad-y-proteccion)
+10. [Variables de Entorno](#variables-de-entorno)
+11. [Tests](#tests)
+12. [Decisiones Tomadas](#decisiones-tomadas)
+13. [Pendientes / Decisiones Abiertas](#pendientes--decisiones-abiertas)
 
 ---
 
 ## Descripcion General
 
-Aplicacion web full-stack para la **venta de entradas de multiples eventos**. El administrador puede crear y gestionar eventos desde un panel de administracion, y cada evento aparece en la pagina principal para que los usuarios puedan comprar entradas. El sistema permite a cualquier usuario comprar **una o varias entradas** de un evento pagando con tarjeta (Stripe), y recibir automaticamente un **correo electronico con un PDF adjunto por cada entrada**, conteniendo los datos de la entrada y un **codigo QR unico**. En el evento, ese QR puede escanearse desde una interfaz web para validar la entrada y marcarla como usada, evitando duplicados.
+Aplicacion web full-stack para la **venta de entradas de multiples eventos**. El administrador puede crear y gestionar eventos desde un panel de administracion, definiendo **multiples tipos de entrada** por evento (ej: General, VIP, Backstage), cada uno con su propio precio y aforo. Los usuarios pueden comprar entradas seleccionando el tipo y la cantidad deseada, pagando con tarjeta (Stripe), y recibir automaticamente un **correo electronico HTML con un PDF adjunto por cada entrada**, conteniendo los datos de la entrada, el tipo, y un **codigo QR unico**. En el evento, ese QR puede escanearse desde una interfaz web para validar la entrada, ver el tipo de entrada y el nombre del asistente, y marcarla como usada.
 
 ### Caracteristicas principales
 - Soporte para **multiples eventos** gestionados desde el panel de administracion
-- Compra de **una o varias entradas** en una sola transaccion (sin necesidad de registro, solo email)
+- **Multiples tipos de entrada** por evento con precio y aforo independiente (ej: General, VIP)
+- Compra de **una o varias entradas de diferentes tipos** en una sola transaccion
+- **Nombres individuales por asistente** (cada entrada tiene nombre propio)
 - Pago online seguro mediante Stripe
-- Generacion automatica de un PDF por cada entrada comprada, con QR unico
-- Envio automatico de todos los PDFs por correo electronico
-- Validacion de QR en tiempo real con marcado de entrada como "usada"
-- Panel de administracion con gestion de eventos y metricas
-- Aforo configurable por evento
-- Precio configurable por evento
+- **Reserva atomica de entradas** con proteccion contra sobreventa (optimistic locking)
+- Generacion automatica de un PDF por cada entrada comprada, con QR unico y tipo de entrada
+- Envio automatico de todos los PDFs por correo electronico (HTML + texto plano)
+- Validacion de QR en tiempo real mostrando nombre del asistente y tipo de entrada
+- Panel de administracion con gestion de eventos, tipos de entrada y metricas
+- Rate limiting en endpoints sensibles (login, checkout, scanner)
+- Sanitizacion de todos los inputs (HTML stripping, validacion de UUID, email, etc.)
+- Creacion idempotente de tickets (previene duplicados por webhook + success)
 - Escaner QR protegido con PIN independiente por evento
+- Imagen/banner opcional por evento (subida desde el panel de admin, max 5 MB)
 
 ---
 
@@ -38,14 +45,14 @@ Aplicacion web full-stack para la **venta de entradas de multiples eventos**. El
 | Capa | Tecnologia |
 |---|---|
 | Back-end | Python + Flask |
-| Base de datos | MongoDB |
+| Base de datos | MongoDB (PyMongo) |
 | Pagos | Stripe (Checkout Sessions + Webhooks) |
 | Generacion de PDF | ReportLab |
 | Generacion de QR | qrcode (Python library) |
 | Envio de correo | Flask-Mail / SMTP |
+| Rate limiting | Flask-Limiter |
 | Front-end | HTML + CSS + JavaScript (Vanilla) |
 | Escaneo QR | html5-qrcode (libreria JS, accede a la camara del dispositivo) |
-| Hosting | Pendiente de definir |
 
 ---
 
@@ -55,22 +62,22 @@ Aplicacion web full-stack para la **venta de entradas de multiples eventos**. El
 ticket-app/
 |
 |-- app/
-|   |-- __init__.py                 # Factory de la app Flask
+|   |-- __init__.py                 # Factory de la app Flask (Mail, Limiter, MongoDB)
 |   |-- config.py                   # Variables de configuracion
 |   |
 |   |-- routes/
 |   |   |-- __init__.py
 |   |   |-- main.py                 # Ruta principal (listado de eventos)
-|   |   |-- checkout.py             # Logica de Stripe (crear sesion, webhook)
-|   |   |-- tickets.py              # Generacion y descarga de entradas
+|   |   |-- events.py               # Pagina publica de detalle de evento + compra
+|   |   |-- checkout.py             # Logica de Stripe (crear sesion, webhook, success/cancel)
+|   |   |-- tickets.py              # Descarga individual de entradas en PDF
 |   |   |-- scanner.py              # Validacion de QR en tiempo real
 |   |   |-- admin.py                # Panel de administracion y gestion de eventos
-|   |   |-- events.py               # Pagina publica de detalle de evento + compra
 |   |
 |   |-- services/
 |   |   |-- __init__.py
-|   |   |-- stripe_service.py       # Integracion con Stripe
-|   |   |-- email_service.py        # Envio de correos con PDFs adjuntos
+|   |   |-- stripe_service.py       # Integracion con Stripe (Checkout Sessions)
+|   |   |-- email_service.py        # Envio de correos HTML con PDFs adjuntos
 |   |   |-- pdf_service.py          # Generacion del PDF de la entrada
 |   |   |-- qr_service.py           # Generacion del QR unico
 |   |   |-- ticket_service.py       # Logica de negocio de las entradas
@@ -78,35 +85,40 @@ ticket-app/
 |   |
 |   |-- models/
 |   |   |-- __init__.py
-|   |   |-- ticket.py               # Modelo de entrada (MongoDB)
 |   |   |-- event.py                # Modelo de evento (MongoDB)
+|   |   |-- ticket.py               # Modelo de entrada (MongoDB)
+|   |
+|   |-- utils/
+|   |   |-- __init__.py
+|   |   |-- sanitize.py             # Sanitizacion de inputs (clean, valid_uuid, valid_email, etc.)
 |   |
 |   |-- templates/
 |   |   |-- base.html               # Layout base
-|   |   |-- index.html              # Pagina principal (listado de eventos)
-|   |   |-- event_detail.html       # Detalle de evento + formulario de compra
+|   |   |-- index.html              # Pagina principal (listado de eventos con rango de precios)
+|   |   |-- event_detail.html       # Detalle de evento + selector de tipos de entrada
 |   |   |-- success.html            # Pagina tras compra exitosa
 |   |   |-- cancel.html             # Pagina si se cancela el pago
 |   |   |-- scanner.html            # Interfaz de escaneo QR
 |   |   |-- admin/
+|   |   |   |-- login.html          # Login del panel de admin
 |   |   |   |-- dashboard.html      # Panel de administracion general
-|   |   |   |-- event_form.html     # Formulario crear/editar evento
-|   |   |   |-- event_detail.html   # Metricas detalladas de un evento
+|   |   |   |-- event_form.html     # Formulario crear/editar evento con tipos de entrada
+|   |   |   |-- event_detail.html   # Metricas detalladas + desglose por tipo
 |   |   |-- email/
-|   |       |-- ticket_email.html   # Plantilla del correo
+|   |       |-- ticket_email.html   # Plantilla HTML del correo de entradas
 |   |
 |   |-- static/
 |       |-- css/
 |       |   |-- main.css
 |       |-- js/
-|       |   |-- checkout.js         # Logica del formulario de compra
+|       |   |-- checkout.js         # Logica del formulario de compra (multiples tipos)
 |       |   |-- scanner.js          # Logica del escaner QR (camara)
-|       |   |-- admin.js            # Logica del panel de admin (formularios)
-|       |-- img/
-|           |-- logo.png
+|       |   |-- admin.js            # Confirmaciones del panel de admin
+|       |-- uploads/
+|           |-- events/             # Imagenes/banners subidos por evento
 |
+|-- tests/                          # Suite de tests (pytest + mongomock)
 |-- .env                            # Variables de entorno (NO subir a git)
-|-- .env.example                    # Plantilla de variables de entorno
 |-- .gitignore
 |-- requirements.txt
 |-- run.py                          # Punto de entrada de la app
@@ -126,27 +138,51 @@ Cada documento representa un evento gestionado por el administrador.
   "event_id": "UUID unico (ej: e1a2b3c4-...)",
   "name": "Nombre del evento",
   "description": "Descripcion del evento (texto libre)",
-  "date": "2026-06-15T21:00:00Z",
+  "date": "2026-06-15T21:00",
   "venue": "Lugar del evento",
-  "price": 25.00,
   "currency": "eur",
-  "max_tickets": 300,
-  "tickets_sold": 0,
+  "ticket_types": [
+    {
+      "type_id": "hex8chars",
+      "name": "General",
+      "price": 25.00,
+      "max_tickets": 200,
+      "tickets_sold": 0,
+      "tickets_reserved": 0
+    },
+    {
+      "type_id": "hex8chars",
+      "name": "VIP",
+      "price": 60.00,
+      "max_tickets": 50,
+      "tickets_sold": 0,
+      "tickets_reserved": 0
+    }
+  ],
   "status": "active | paused | finished",
+  "image_filename": "uuid-hex.jpg | null",
   "scanner_pin": "PIN de 6 digitos para el personal de puerta",
   "created_at": "2026-01-01T12:00:00Z",
   "updated_at": "2026-01-01T12:00:00Z"
 }
 ```
 
+**Campos de `ticket_types`:**
+- `type_id` -- Identificador unico del tipo (generado automaticamente, 8 caracteres hex)
+- `name` -- Nombre del tipo de entrada (ej: "General", "VIP", "Backstage")
+- `price` -- Precio de este tipo de entrada
+- `max_tickets` -- Aforo maximo para este tipo
+- `tickets_sold` -- Entradas vendidas (confirmadas) de este tipo
+- `tickets_reserved` -- Entradas reservadas (en proceso de pago) de este tipo
+
 **Estados posibles de `status`:**
 - `active` -- evento visible en la pagina principal con venta de entradas habilitada
-- `paused` -- evento visible pero con venta deshabilitada temporalmente (ej: sold out manual)
+- `paused` -- evento visible pero con venta deshabilitada temporalmente
 - `finished` -- evento pasado o cerrado, no aparece en la pagina principal
 
 ### Coleccion: `tickets` (MongoDB)
 
-Cada documento representa **una entrada individual** comprada. Si un usuario compra 3 entradas, se generan 3 documentos.
+Cada documento representa **una entrada individual** comprada.
 
 ```json
 {
@@ -156,12 +192,15 @@ Cada documento representa **una entrada individual** comprada. Si un usuario com
   "order_id": "UUID compartido por todas las entradas de una misma compra",
   "buyer_name": "Nombre del comprador",
   "buyer_email": "correo@ejemplo.com",
+  "attendee_name": "Nombre del asistente (puede ser distinto al comprador)",
+  "ticket_type_id": "ID del tipo de entrada",
+  "ticket_type_name": "General",
   "price": 25.00,
   "currency": "eur",
   "stripe_session_id": "cs_live_...",
   "stripe_payment_intent": "pi_...",
   "status": "paid | used | cancelled",
-  "qr_code": "URL codificada en el QR (apunta al endpoint de validacion)",
+  "qr_code": "URL codificada en el QR",
   "created_at": "2026-01-01T20:00:00Z",
   "used_at": "2026-01-15T21:34:00Z | null"
 }
@@ -172,7 +211,7 @@ Cada documento representa **una entrada individual** comprada. Si un usuario com
 - `used` -- entrada ya escaneada y validada en el evento
 - `cancelled` -- pago cancelado o reembolsado
 
-**Nota sobre `order_id`:** Todas las entradas generadas en una misma compra comparten el mismo `order_id`. Esto permite agrupar entradas por compra (ej: para reenviar todos los PDFs de una compra).
+**Nota sobre `order_id`:** Todas las entradas de una misma compra comparten el mismo `order_id`.
 
 ---
 
@@ -182,25 +221,31 @@ Cada documento representa **una entrada individual** comprada. Si un usuario com
 Usuario entra en la pagina principal
         |
         v
-Ve el listado de eventos activos
+Ve el listado de eventos activos (con rango de precios por tipo)
         |
         v
 Selecciona un evento --> /event/<event_id>
         |
         v
-Rellena formulario (nombre + email + cantidad de entradas)
+Ve los tipos de entrada disponibles con precios y aforo
         |
         v
-Flask verifica que hay aforo suficiente
+Selecciona cantidad por cada tipo + nombre de cada asistente
+        |
+        v
+Flask reserva atomicamente las entradas solicitadas (optimistic locking)
+Si falla alguna reserva, rollback de las anteriores
         |
         v
 Flask crea una Stripe Checkout Session
-(con quantity = numero de entradas solicitadas)
+(con line items por cada tipo de entrada seleccionado)
         |
         v
 Usuario es redirigido a la pagina de pago de Stripe
         |
-        |-- Pago cancelado --> /cancel (pagina de error / reintento)
+        |-- Pago cancelado --> /cancel
+        |   Stripe envia webhook "session.expired"
+        |   Se liberan las reservas
         |
         |-- Pago exitoso
                 |
@@ -208,110 +253,105 @@ Usuario es redirigido a la pagina de pago de Stripe
         Stripe envia un Webhook a /checkout/webhook
                 |
                 v
-        Flask verifica la firma del webhook (seguridad)
+        Flask verifica la firma del webhook
                 |
                 v
-        Por cada entrada comprada (segun quantity):
+        Por cada entrada comprada:
             - Se genera un ticket_id (UUID unico)
-            - Se genera un order_id compartido (si es la primera)
-            - qr_service genera el QR apuntando a:
-              /scanner/validate/<ticket_id>
-            - pdf_service genera el PDF con los datos + QR
+            - Se asigna el nombre del asistente correspondiente
+            - qr_service genera el QR
+            - pdf_service genera el PDF con tipo de entrada
                 |
                 v
-        Todos los tickets se guardan en MongoDB con status="paid"
-        Se incrementa tickets_sold en el evento
+        Se confirman las reservas (reserved --> sold)
                 |
                 v
-        email_service envia UN correo con TODOS los PDFs adjuntos
+        email_service envia UN correo HTML con TODOS los PDFs adjuntos
                 |
                 v
         Usuario es redirigido a /success
 ```
 
-> **Importante:** La logica de creacion de tickets (generar QR, PDF, guardar en BD, enviar email) ocurre **dentro del webhook de Stripe**, NO en el redirect a `/success`. Esto garantiza que solo se generan entradas de pagos realmente confirmados.
+> **Nota sobre idempotencia:** La creacion de tickets verifica `stripe_session_id` para evitar duplicados. Tanto el webhook como la pagina `/success` pueden intentar crear tickets, pero solo el primero en ejecutarse los crea realmente.
+
+### Sistema de reservas (tres fases)
+
+1. **Reservar** (`reserve_tickets`): Incrementa `tickets_reserved` atomicamente usando optimistic locking. Verifica que `sold + reserved + quantity <= max_tickets`.
+2. **Confirmar** (`confirm_reservation`): Tras pago exitoso, convierte reservas en ventas (`reserved -= qty`, `sold += qty`).
+3. **Liberar** (`release_reservation`): Si el pago expira o se cancela, libera las reservas (`reserved -= qty`).
 
 ---
 
 ## Modulos y Funcionalidades
 
 ### `routes/main.py`
-- `GET /` -- Sirve la pagina principal con el listado de todos los eventos activos. Para cada evento muestra: nombre, fecha, lugar, precio, y entradas disponibles.
+- `GET /` -- Pagina principal con listado de eventos activos. Para cada evento muestra: nombre, fecha, lugar, rango de precios (o precio unico), y entradas disponibles totales.
 
 ### `routes/events.py`
-- `GET /event/<event_id>` -- Pagina publica de detalle de un evento con el formulario de compra (nombre, email, cantidad de entradas). Muestra toda la informacion del evento y el aforo restante.
+- `GET /event/<event_id>` -- Detalle de evento con selector de tipos de entrada. Muestra cada tipo con nombre, precio, disponibilidad y campo de cantidad.
 
 ### `routes/checkout.py`
-- `POST /checkout/create-session` -- Recibe event_id, nombre, email y cantidad. Verifica aforo disponible, crea una Stripe Checkout Session con la cantidad correspondiente y redirige al usuario a Stripe.
-- `POST /checkout/webhook` -- Endpoint que recibe eventos de Stripe. Solo procesa `checkout.session.completed`. Verifica la firma del webhook con la clave secreta de Stripe.
-- `GET /success` -- Pagina de confirmacion tras pago exitoso (solo informativa, no ejecuta logica).
-- `GET /cancel` -- Pagina mostrada si el usuario cancela el pago en Stripe.
+- `POST /checkout/create-session` -- Recibe event_id, nombre/apellidos del comprador, email, cantidades por tipo de entrada, y nombres de asistentes. Reserva atomicamente las entradas, crea una Stripe Checkout Session con line items por tipo, y redirige a Stripe. **Rate limited: 10/min.**
+- `POST /checkout/webhook` -- Recibe eventos de Stripe. Procesa `checkout.session.completed` (crea tickets + confirma reservas) y `checkout.session.expired` (libera reservas).
+- `GET /success` -- Pagina de confirmacion tras pago exitoso. Tambien intenta crear tickets como fallback idempotente si el webhook no ha llegado aun.
+- `GET /cancel` -- Pagina mostrada si el usuario cancela el pago.
 
 ### `routes/tickets.py`
-- `GET /ticket/<ticket_id>` -- (Opcional) Permite al comprador descargar su entrada individual en PDF.
-- `GET /tickets/order/<order_id>` -- (Opcional) Permite descargar todas las entradas de una compra.
+- `GET /ticket/<ticket_id>` -- Descarga individual de una entrada en PDF.
 
 ### `routes/scanner.py`
-- `GET /scanner/<event_id>` -- Sirve la interfaz web de escaneo para un evento concreto. Requiere introducir el PIN del evento para acceder.
-- `POST /scanner/validate` -- Recibe el contenido del QR escaneado (ticket_id) y el event_id. Busca la entrada en MongoDB y:
-  - Si `status == "paid"` y pertenece al evento correcto --> actualiza a `status = "used"`, guarda `used_at`, devuelve valida.
-  - Si `status == "used"` --> devuelve ya usada (con la hora de primer uso).
-  - Si no existe o no pertenece al evento --> devuelve no valida.
-- `POST /scanner/auth` -- Verifica el PIN introducido para acceder al escaner de un evento.
+- `GET /scanner/<event_id>` -- Interfaz web de escaneo QR para un evento. Requiere PIN.
+- `POST /scanner/auth` -- Verifica el PIN del evento. **Rate limited: 10/min.**
+- `POST /scanner/validate` -- Valida un ticket escaneado. Muestra nombre del asistente y tipo de entrada. **Rate limited: 30/min.**
 
 ### `routes/admin.py`
-- `GET /admin` -- Panel principal. Muestra lista de todos los eventos con metricas resumidas. Acceso protegido por contrasena (`ADMIN_PASSWORD` en `.env`).
-- `GET /admin/event/<event_id>` -- Metricas detalladas de un evento concreto.
-- `GET /admin/event/new` -- Formulario para crear un nuevo evento.
-- `POST /admin/event/create` -- Procesa la creacion de un nuevo evento.
-- `GET /admin/event/<event_id>/edit` -- Formulario para editar un evento existente.
-- `POST /admin/event/<event_id>/update` -- Procesa la actualizacion de un evento.
-- `POST /admin/event/<event_id>/status` -- Cambia el estado de un evento (active/paused/finished).
+- `GET /admin` -- Panel principal con lista de eventos y metricas (vendidas/total, ingresos por tipo). **Protegido por contrasena.**
+- `GET /admin/event/<event_id>` -- Metricas detalladas con desglose por tipo de entrada.
+- `GET /admin/event/new` -- Formulario para crear evento con tipos de entrada dinamicos.
+- `POST /admin/event/create` -- Procesa la creacion (con tipos de entrada).
+- `GET /admin/event/<event_id>/edit` -- Formulario de edicion (preserva vendidas/reservadas).
+- `POST /admin/event/<event_id>/update` -- Procesa la actualizacion.
+- `POST /admin/event/<event_id>/status` -- Cambia estado (active/paused/finished). **Rate limited: 5/min en login.**
 
 ### `services/event_service.py`
-- `create_event(data)` -- Crea un nuevo evento en MongoDB con los datos proporcionados. Genera el event_id y el scanner_pin.
-- `update_event(event_id, data)` -- Actualiza los datos de un evento.
-- `change_status(event_id, new_status)` -- Cambia el estado de un evento.
-- `get_event(event_id)` -- Recupera un evento por su ID.
-- `get_active_events()` -- Devuelve todos los eventos con status "active" (para la pagina principal).
-- `get_all_events()` -- Devuelve todos los eventos (para el panel de admin).
-- `get_available_tickets(event_id)` -- Calcula las entradas disponibles: `max_tickets - tickets_sold`.
-- `verify_scanner_pin(event_id, pin)` -- Verifica si el PIN proporcionado es correcto para un evento.
+- `create_event(data)` -- Crea evento con tipos de entrada. Genera event_id, type_ids y scanner_pin.
+- `update_event(event_id, data)` -- Actualiza datos del evento (campos permitidos: name, description, date, venue, currency, ticket_types, image_filename).
+- `save_image(file)` -- Valida (extension, content-type, max 5 MB) y guarda imagen.
+- `delete_image(filename)` -- Elimina imagen del disco.
+- `reserve_tickets(event_id, type_id, qty)` -- Reserva atomica con optimistic locking.
+- `confirm_reservation(event_id, type_id, qty)` -- Confirma reserva (reserved -> sold).
+- `release_reservation(event_id, type_id, qty)` -- Libera reserva.
+- `get_total_capacity(event)` -- Suma `max_tickets` de todos los tipos.
+- `get_total_sold(event)` -- Suma `tickets_sold` de todos los tipos.
+- `get_total_available(event)` -- Suma `max_tickets - sold - reserved` de todos los tipos.
 
 ### `services/stripe_service.py`
-- `create_checkout_session(event, buyer_name, buyer_email, quantity)` -- Crea y devuelve una Stripe Checkout Session con los datos del comprador, el precio del evento y la cantidad de entradas.
-- `verify_webhook(payload, sig_header)` -- Verifica la firma del webhook de Stripe.
-
-### `services/qr_service.py`
-- `generate_qr(ticket_id)` -- Genera una imagen QR que codifica la URL de validacion: `https://<dominio>/scanner/validate/<ticket_id>`. Devuelve la imagen como bytes.
-
-### `services/pdf_service.py`
-- `generate_pdf(ticket_data, event_data, qr_image)` -- Genera un PDF con:
-  - Nombre del evento, fecha y lugar
-  - Nombre del comprador
-  - Precio pagado
-  - Codigo QR
-  - Numero/ID de entrada
-- Devuelve el PDF como bytes.
-
-### `services/email_service.py`
-- `send_ticket_email(buyer_email, buyer_name, event_data, pdf_list)` -- Envia un correo al comprador con:
-  - Asunto: confirmacion de compra para el evento
-  - Cuerpo HTML con los detalles del evento y la compra
-  - Todos los PDFs adjuntos (uno por entrada comprada)
+- `create_checkout_session(event, buyer_name, buyer_email, items, attendee_names)` -- Crea Stripe Checkout Session con line items por tipo. Almacena items y nombres de asistentes en metadata.
+- `verify_webhook(payload, sig_header)` -- Verifica firma del webhook.
 
 ### `services/ticket_service.py`
-- `create_tickets(stripe_session, event, quantity)` -- Orquesta la creacion de N entradas: genera ticket_ids, order_id, llama a qr_service y pdf_service por cada una, guarda en MongoDB, incrementa tickets_sold en el evento, y llama a email_service con todos los PDFs.
-- `get_ticket(ticket_id)` -- Recupera un ticket de la BD por su ID.
-- `get_tickets_by_order(order_id)` -- Recupera todos los tickets de una compra.
-- `validate_ticket(ticket_id)` -- Valida y marca como usada una entrada. Devuelve el resultado.
-- `get_event_stats(event_id)` -- Devuelve estadisticas agregadas de un evento para el panel de admin.
+- `create_tickets(stripe_session, event, items)` -- Crea N tickets (uno por entrada). Idempotente por `stripe_session_id`. Genera QR, PDF, y envia email.
+- `parse_items_from_metadata(metadata)` -- Decodifica items compactos de metadata de Stripe.
+- `validate_ticket(ticket_id)` -- Valida y marca como usada. Devuelve nombre del asistente y tipo de entrada.
+- `get_event_stats(event_id)` -- Estadisticas agregadas (vendidas, usadas, ingresos).
+- `get_recent_purchases(event_id, limit)` -- Ultimas compras de un evento.
 
-### `models/event.py`
-- Define la estructura del documento de evento en MongoDB y los metodos de acceso a la base de datos (usando `pymongo` directamente).
+### `services/pdf_service.py`
+- `generate_pdf(ticket_data, event_data, qr_image)` -- PDF con nombre del evento, fecha, lugar, nombre del asistente, tipo de entrada, precio, ID de entrada y QR.
 
-### `models/ticket.py`
-- Define la estructura del documento de ticket en MongoDB y los metodos de acceso a la base de datos (usando `pymongo` directamente).
+### `services/email_service.py`
+- `send_ticket_email(buyer_email, buyer_name, event_data, pdf_list)` -- Correo con cuerpo HTML (usando plantilla `email/ticket_email.html`) + texto plano como fallback + PDFs adjuntos.
+
+### `services/qr_service.py`
+- `generate_qr(ticket_id)` -- QR que codifica la URL de validacion. Devuelve bytes de imagen PNG + URL.
+
+### `utils/sanitize.py`
+- `clean(value, max_length)` -- Limpia HTML tags, limita longitud.
+- `valid_uuid(value)` -- Valida formato UUID.
+- `valid_email(value)` -- Valida formato email.
+- `valid_int(value, min, max, default)` -- Parsea entero con limites.
+- `valid_float(value, min, default)` -- Parsea float con minimo.
+- `valid_pin(value)` -- Valida PIN numerico (hasta 6 digitos).
 
 ---
 
@@ -326,55 +366,84 @@ Acceso: protegido por contrasena definida en `.env` (`ADMIN_PASSWORD`)
 | Nombre del evento | Nombre + enlace al detalle |
 | Fecha | Fecha del evento |
 | Estado | active / paused / finished (con opcion de cambiar) |
-| Vendidas / Total | Ej: "150 / 300" |
-| Ingresos | Total recaudado para ese evento |
-| Acciones | Editar, ver detalle, cambiar estado |
+| Vendidas / Total | Suma de tickets_sold / suma de max_tickets (todos los tipos) |
+| Ingresos | Suma de (tickets_sold * precio) por cada tipo |
+| Acciones | Editar, pausar/activar, finalizar |
 
-### Boton "Crear nuevo evento":
-Formulario con los campos:
+### Formulario crear/editar evento:
 - Nombre del evento (obligatorio)
 - Descripcion (opcional)
 - Fecha y hora (obligatorio)
 - Lugar (obligatorio)
-- Precio por entrada (obligatorio)
-- Moneda (por defecto EUR)
-- Aforo maximo (obligatorio)
+- Moneda (EUR, USD, GBP)
+- **Tipos de entrada** (dinamicos, anadir/eliminar):
+  - Nombre del tipo (ej: General, VIP)
+  - Precio por entrada
+  - Aforo maximo
+- Imagen/banner (opcional, JPG/PNG/WEBP, max 5 MB)
 
-Al crear el evento, se genera automaticamente un `scanner_pin` de 6 digitos que el admin puede copiar y entregar al personal de puerta.
+Al crear el evento, se genera automaticamente un `scanner_pin` de 6 digitos.
 
 ### Detalle de un evento (`/admin/event/<event_id>`):
 | Metrica | Descripcion |
 |---|---|
-| Entradas vendidas | Total de tickets con `status = "paid"` o `"used"` |
-| Entradas restantes | `max_tickets - tickets_sold` |
+| Entradas vendidas | Total de tickets con status "paid" o "used" |
+| Entradas restantes | Suma de (max_tickets - sold - reserved) por tipo |
 | % de aforo ocupado | Barra de progreso visual |
-| Ingresos totales | `tickets_sold x precio` |
-| Entradas ya usadas | Total de tickets con `status = "used"` |
-| Entradas aun no usadas | Vendidas pero no presentadas todavia |
-| PIN del escaner | PIN para el personal de puerta (visible, copiable) |
-| Ultimas compras | Lista de las N compras mas recientes (nombre, email, cantidad, fecha) |
+| Ingresos totales | Calculados desde tickets reales en BD |
+| Ya usadas / Sin usar | Desglose por estado |
+| **Desglose por tipo** | Tabla con tipo, precio, vendidas, aforo y disponibles |
+| PIN del escaner | Visible y copiable |
+| Ultimas compras | Nombre del asistente, email, tipo de entrada, estado, fecha |
 
 ---
 
 ## Validacion de QR
 
-El sistema de escaneo funciona integramente desde el navegador web, sin necesidad de app nativa.
-
 ### Funcionamiento:
 1. El personal de puerta abre `/scanner/<event_id>` en su movil o tablet.
 2. Se le pide el **PIN del evento** (6 digitos, proporcionado por el administrador).
-3. Tras introducir el PIN correcto, se activa la camara del dispositivo usando la libreria **html5-qrcode** (JS).
-4. Al detectar un QR, `scanner.js` hace una peticion `POST /scanner/validate` con el `ticket_id`.
+3. Tras introducir el PIN correcto, se activa la camara usando **html5-qrcode**.
+4. Al detectar un QR, `scanner.js` hace `POST /scanner/validate` con el `ticket_id`.
 5. El servidor verifica que el ticket pertenece al evento correcto y responde con el estado.
-6. La interfaz muestra visualmente:
-   - Verde: entrada valida (primera vez que se escanea) + nombre del comprador
-   - Rojo: entrada ya usada (con la hora de primer uso) o no valida
+6. La interfaz muestra:
+   - **Verde**: entrada valida + nombre del asistente + tipo de entrada
+   - **Rojo**: entrada ya usada o no valida (con motivo)
 
 ### Seguridad:
-- El acceso al escaner esta protegido por un **PIN unico por evento**, independiente de la contrasena de administrador.
-- Esto permite que el personal de puerta acceda al escaner sin tener acceso al panel de administracion.
+- PIN unico por evento, independiente de la contrasena de admin.
+- El personal de puerta accede al escaner sin tener acceso al panel de administracion.
 - Cada entrada solo puede pasar de `paid` a `used` una unica vez.
-- El endpoint verifica que el ticket pertenece al evento del escaner para evitar validar entradas de otros eventos.
+- Se verifica que el ticket pertenece al evento del escaner.
+
+---
+
+## Seguridad y Proteccion
+
+### Sanitizacion de inputs
+- Todos los inputs de formulario pasan por `utils/sanitize.py`
+- HTML tags eliminados con regex
+- UUIDs, emails, enteros y floats validados con funciones especificas
+- Longitudes maximas aplicadas a todos los campos de texto
+
+### Rate limiting (Flask-Limiter)
+- Global: 120 peticiones/minuto por IP
+- `/admin/login` POST: 5/minuto
+- `/checkout/create-session`: 10/minuto
+- `/scanner/auth`: 10/minuto
+- `/scanner/validate`: 30/minuto
+
+### Prevencion de sobreventa
+- Optimistic locking en MongoDB para reservas atomicas
+- Rollback automatico si falla la reserva de algun tipo de entrada
+- Reservas liberadas automaticamente cuando Stripe envia evento `session.expired`
+
+### Idempotencia
+- Creacion de tickets protegida por `stripe_session_id` (no se crean duplicados)
+
+### Proteccion del panel de admin
+- Contrasena configurada via variable de entorno
+- Session-based authentication
 
 ---
 
@@ -406,10 +475,28 @@ MAIL_PASSWORD=contrasena_o_app_password
 ADMIN_PASSWORD=contrasena_panel_admin
 
 # App
-BASE_URL=http://localhost:5000
+BASE_URL=https://localhost:5000
 ```
 
-> **Nota:** Los datos de cada evento (nombre, fecha, lugar, precio, aforo) ya no se configuran en variables de entorno. Se gestionan dinamicamente desde el panel de administracion y se almacenan en MongoDB.
+---
+
+## Tests
+
+Suite de 105 tests usando `pytest` y `mongomock`:
+
+| Archivo | Cobertura |
+|---|---|
+| `test_concurrency.py` | Reservas atomicas, sobreventa, 1000 tickets con 250 hilos |
+| `test_event_service.py` | CRUD de eventos, cambio de estado, PIN del scanner |
+| `test_ticket_service.py` | Creacion de tickets, validacion, estadisticas |
+| `test_routes_admin.py` | Login, CRUD de eventos, proteccion de rutas |
+| `test_routes_checkout.py` | Checkout, webhook, validaciones |
+| `test_routes_public.py` | Pagina principal, detalle de evento, success/cancel |
+| `test_routes_scanner.py` | Autenticacion PIN, validacion de tickets |
+| `test_image_upload.py` | Subida de imagenes, validacion de formato/tamano |
+| `test_pdf_qr_service.py` | Generacion de PDFs y QRs |
+
+Ejecutar: `source venv/bin/activate && python -m pytest tests/ -v`
 
 ---
 
@@ -417,12 +504,17 @@ BASE_URL=http://localhost:5000
 
 | # | Decision | Resolucion |
 |---|---|---|
-| 1 | Evento unico vs multi-evento | **Multi-evento**: el admin crea eventos desde el panel, se almacenan en MongoDB |
-| 2 | Entradas por compra | **Multiples**: el usuario puede comprar N entradas en una sola transaccion |
-| 3 | Diseno visual | **Funcional y minimalista** por ahora, se puede mejorar mas adelante |
-| 4 | Proteccion del escaner | **PIN separado por evento**, independiente de la contrasena de admin |
-| 5 | Libreria de PDF | **ReportLab** (ligera, sin dependencias del sistema) |
-| 6 | Docker | **No por ahora**, se puede anadir mas adelante si es necesario |
+| 1 | Evento unico vs multi-evento | **Multi-evento**: el admin crea eventos desde el panel |
+| 2 | Entradas por compra | **Multiples tipos**: el usuario selecciona cantidad por cada tipo de entrada |
+| 3 | Modelo de datos para tipos | **Array embebido** en el documento del evento (no coleccion separada) |
+| 4 | Control de concurrencia | **Optimistic locking** con MongoDB positional operator `$` |
+| 5 | Flujo de reservas | **Tres fases**: reserve -> confirm / release |
+| 6 | Proteccion del escaner | **PIN separado por evento**, independiente de la contrasena de admin |
+| 7 | Libreria de PDF | **ReportLab** (ligera, sin dependencias del sistema) |
+| 8 | Email format | **HTML + texto plano** dual (con plantilla Jinja2 para HTML) |
+| 9 | Idempotencia | **Verificacion por stripe_session_id** antes de crear tickets |
+| 10 | Sanitizacion | **Modulo centralizado** (`utils/sanitize.py`) con funciones tipadas |
+| 11 | Docker | No por ahora, se puede anadir mas adelante |
 
 ---
 
@@ -432,7 +524,10 @@ BASE_URL=http://localhost:5000
 |---|---|---|
 | 1 | Proveedor de email (Gmail SMTP, SendGrid, Mailgun...) | Pendiente |
 | 2 | Hosting y dominio | Pendiente |
-| 3 | Diseno visual / branding (logo, colores) | Pendiente (funcional por ahora) |
+| 3 | Certificado SSL para produccion (actualmente usa adhoc) | Pendiente |
+| 4 | Diseno visual / branding (logo, colores) | Pendiente (funcional por ahora) |
+| 5 | Job de limpieza de reservas expiradas no confirmadas | Pendiente |
+| 6 | Migracion de eventos existentes sin ticket_types | Pendiente si hay datos legacy |
 
 ---
 

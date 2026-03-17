@@ -1,8 +1,11 @@
 from flask import Flask
 from flask_mail import Mail
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from pymongo import MongoClient
 
 mail = Mail()
+limiter = Limiter(key_func=get_remote_address, default_limits=["120 per minute"])
 mongo_client = None
 db = None
 
@@ -19,6 +22,9 @@ def create_app():
 
     # Flask-Mail
     mail.init_app(app)
+
+    # Rate limiter
+    limiter.init_app(app)
 
     # Registrar blueprints
     from app.routes.main import main_bp

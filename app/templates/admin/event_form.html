@@ -1,12 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}{{ "Editar" if event else "Crear" }} evento - Ticket App{% endblock %}
+{% block title %}{{ "Editar" if event else "Crear" }} evento - Eventum Spain{% endblock %}
 
 {% block content %}
 <section class="admin-form">
     <h1>{{ "Editar" if event else "Crear nuevo" }} evento</h1>
 
-    <form method="POST" action="{% if event %}{{ url_for('admin.update_event', event_id=event.event_id) }}{% else %}{{ url_for('admin.create_event') }}{% endif %}">
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data" action="{% if event %}{{ url_for('admin.update_event', event_id=event.event_id) }}{% else %}{{ url_for('admin.create_event') }}{% endif %}">
         <div class="form-group">
             <label for="name">Nombre del evento *</label>
             <input type="text" id="name" name="name" value="{{ event.name if event else '' }}" required>
@@ -24,10 +28,6 @@
             <input type="text" id="venue" name="venue" value="{{ event.venue if event else '' }}" required>
         </div>
         <div class="form-group">
-            <label for="price">Precio por entrada *</label>
-            <input type="number" id="price" name="price" step="0.01" min="0" value="{{ event.price if event else '' }}" required>
-        </div>
-        <div class="form-group">
             <label for="currency">Moneda</label>
             <select id="currency" name="currency">
                 <option value="eur" {{ 'selected' if not event or event.currency == 'eur' }}>EUR</option>
@@ -35,9 +35,46 @@
                 <option value="gbp" {{ 'selected' if event and event.currency == 'gbp' }}>GBP</option>
             </select>
         </div>
+
         <div class="form-group">
-            <label for="max_tickets">Aforo maximo *</label>
-            <input type="number" id="max_tickets" name="max_tickets" min="1" value="{{ event.max_tickets if event else '' }}" required>
+            <label>Tipos de entrada *</label>
+            <div id="ticket-types-container">
+                {% if event and event.ticket_types %}
+                    {% for tt in event.ticket_types %}
+                    <div class="ticket-type-row">
+                        <input type="hidden" name="type_id[]" value="{{ tt.type_id }}">
+                        <input type="text" name="type_name[]" placeholder="Nombre (ej: General)" value="{{ tt.name }}" required>
+                        <input type="number" name="type_price[]" placeholder="Precio" step="0.01" min="0" value="{{ tt.price }}" required>
+                        <input type="number" name="type_max_tickets[]" placeholder="Aforo" min="1" value="{{ tt.max_tickets }}" required>
+                        {% if tt.tickets_sold > 0 %}
+                            <span class="form-hint">{{ tt.tickets_sold }} vendidas</span>
+                        {% else %}
+                            <button type="button" class="btn-remove-type" onclick="this.parentElement.remove()">&times;</button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="ticket-type-row">
+                        <input type="hidden" name="type_id[]" value="">
+                        <input type="text" name="type_name[]" placeholder="Nombre (ej: General)" required>
+                        <input type="number" name="type_price[]" placeholder="Precio" step="0.01" min="0" required>
+                        <input type="number" name="type_max_tickets[]" placeholder="Aforo" min="1" required>
+                        <button type="button" class="btn-remove-type" onclick="this.parentElement.remove()">&times;</button>
+                    </div>
+                {% endif %}
+            </div>
+            <button type="button" id="add-ticket-type" class="btn btn-secondary" style="margin-top:0.5rem">+ Anadir tipo</button>
+        </div>
+
+        <div class="form-group">
+            <label for="image">Imagen / Banner</label>
+            {% if event and event.image_filename %}
+                <div class="image-preview">
+                    <img src="{{ url_for('static', filename='uploads/events/' + event.image_filename) }}" alt="Imagen actual">
+                </div>
+                <p class="form-hint">Sube una nueva imagen para reemplazar la actual.</p>
+            {% endif %}
+            <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png,.webp">
         </div>
         <div class="form-actions">
             <button type="submit" class="btn">{{ "Guardar cambios" if event else "Crear evento" }}</button>
@@ -45,4 +82,19 @@
         </div>
     </form>
 </section>
+
+<script>
+document.getElementById('add-ticket-type').addEventListener('click', function() {
+    var container = document.getElementById('ticket-types-container');
+    var row = document.createElement('div');
+    row.className = 'ticket-type-row';
+    row.innerHTML =
+        '<input type="hidden" name="type_id[]" value="">' +
+        '<input type="text" name="type_name[]" placeholder="Nombre (ej: VIP)" required>' +
+        '<input type="number" name="type_price[]" placeholder="Precio" step="0.01" min="0" required>' +
+        '<input type="number" name="type_max_tickets[]" placeholder="Aforo" min="1" required>' +
+        '<button type="button" class="btn-remove-type" onclick="this.parentElement.remove()">&times;</button>';
+    container.appendChild(row);
+});
+</script>
 {% endblock %}

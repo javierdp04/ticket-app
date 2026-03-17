@@ -6,7 +6,16 @@ from app.models import event as event_model
 from app.services import qr_service, pdf_service, email_service
 
 
-def create_tickets(stripe_session, event, quantity):
+def create_tickets(stripe_session, event, items):
+    """Create ticket records for multiple ticket types.
+
+    items: list of {"type_id": str, "quantity": int}
+    Does NOT modify event counters — the caller handles confirm_reservation.
+    """
+    session_id = stripe_session.get("id")
+    if session_id and ticket_model.get_ticket_by_session(session_id):
+        return []
+
     order_id = str(uuid.uuid4())
     metadata = stripe_session.get("metadata", {})
     buyer_name = metadata.get("buyer_name", "")
@@ -16,37 +25,58 @@ def create_tickets(stripe_session, event, quantity):
     try:
         attendee_names = json.loads(attendee_names_raw)
     except (json.JSONDecodeError, TypeError):
-        attendee_names = [buyer_name] * quantity
+        total_qty = sum(i["quantity"] for i in items)
+        attendee_names = [buyer_name] * total_qty
 
     tickets = []
     pdf_list = []
+    attendee_idx = 0
 
-    for i in range(quantity):
-        attendee_name = attendee_names[i] if i < len(attendee_names) else buyer_name
-        ticket = ticket_model.create_ticket({
-            "event_id": event["event_id"],
-            "order_id": order_id,
-            "buyer_name": buyer_name,
-            "buyer_email": buyer_email,
-            "attendee_name": attendee_name,
-            "price": event["price"],
-            "currency": event["currency"],
-            "stripe_session_id": stripe_session.get("id"),
-            "stripe_payment_intent": stripe_session.get("payment_intent"),
-        })
+    for item in items:
+        type_id = item["type_id"]
+        quantity = item["quantity"]
+        tt = event_model.get_ticket_type(event, type_id)
+        type_name = tt["name"] if tt else "General"
+        price = tt["price"] if tt else 0
 
-        qr_bytes, qr_url = qr_service.generate_qr(ticket["ticket_id"])
-        ticket_model.update_qr_code(ticket["ticket_id"], qr_url)
+        for _ in range(quantity):
+            attendee_name = attendee_names[attendee_idx] if attendee_idx < len(attendee_names) else buyer_name
+            attendee_idx += 1
 
-        pdf_bytes = pdf_service.generate_pdf(ticket, event, qr_bytes)
-        pdf_list.append(pdf_bytes)
-        tickets.append(ticket)
+            ticket = ticket_model.create_ticket({
+                "event_id": event["event_id"],
+                "order_id": order_id,
+                "buyer_name": buyer_name,
+                "buyer_email": buyer_email,
+                "attendee_name": attendee_name,
+                "ticket_type_id": type_id,
+                "ticket_type_name": type_name,
+                "price": price,
+                "currency": event["currency"],
+                "stripe_session_id": session_id,
+                "stripe_payment_intent": stripe_session.get("payment_intent"),
+            })
 
-    event_model.increment_tickets_sold(event["event_id"], quantity)
+            qr_bytes, qr_url = qr_service.generate_qr(ticket["ticket_id"])
+            ticket_model.update_qr_code(ticket["ticket_id"], qr_url)
+
+            pdf_bytes = pdf_service.generate_pdf(ticket, event, qr_bytes)
+            pdf_list.append(pdf_bytes)
+            tickets.append(ticket)
 
     email_service.send_ticket_email(buyer_email, buyer_name, event, pdf_list)
 
     return tickets
+
+
+def parse_items_from_metadata(metadata):
+    """Parse compact items JSON from Stripe metadata."""
+    items_raw = metadata.get("items", "")
+    try:
+        compact = json.loads(items_raw)
+        return [{"type_id": i["t"], "quantity": int(i["q"])} for i in compact]
+    except (json.JSONDecodeError, TypeError, KeyError):
+        return []
 
 
 def get_ticket(ticket_id):
@@ -76,6 +106,8 @@ def validate_ticket(ticket_id):
     return {
         "valid": True,
         "buyer_name": ticket["buyer_name"],
+        "attendee_name": ticket.get("attendee_name", ticket["buyer_name"]),
+        "ticket_type": ticket.get("ticket_type_name", "General"),
         "ticket_id": ticket["ticket_id"],
     }
 

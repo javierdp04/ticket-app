@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Eventos - Ticket App{% endblock %}
+{% block title %}Eventos - Eventum Spain{% endblock %}
 
 {% block content %}
 <section class="events-list">
@@ -8,19 +8,41 @@
     {% if events %}
         <div class="events-grid">
             {% for event in events %}
+            {% set ns = namespace(avail=0) %}
+            {% for tt in event.ticket_types|default([]) %}
+                {% set ns.avail = ns.avail + tt.max_tickets - tt.tickets_sold - (tt.tickets_reserved|default(0)) %}
+            {% endfor %}
             <article class="event-card">
+                {% if event.image_filename %}
+                    <div class="event-card-image">
+                        <img src="{{ url_for('static', filename='uploads/events/' + event.image_filename) }}" alt="{{ event.name }}">
+                    </div>
+                {% else %}
+                    <div class="event-card-placeholder">
+                        <span>{{ event.name }}</span>
+                    </div>
+                {% endif %}
+                <div class="event-card-body">
                 <h2>{{ event.name }}</h2>
                 <p class="event-date">{{ event.date }}</p>
                 <p class="event-venue">{{ event.venue }}</p>
-                <p class="event-price">{{ "%.2f"|format(event.price) }} {{ event.currency|upper }}</p>
+                {% if event.ticket_types %}
+                    {% set prices = event.ticket_types|map(attribute='price')|list %}
+                    {% if prices|min == prices|max %}
+                        <p class="event-price">{{ "%.2f"|format(prices|min) }} {{ event.currency|upper }}</p>
+                    {% else %}
+                        <p class="event-price">Desde {{ "%.2f"|format(prices|min) }} {{ event.currency|upper }}</p>
+                    {% endif %}
+                {% endif %}
                 <p class="event-availability">
-                    {{ event.max_tickets - event.tickets_sold }} entradas disponibles
+                    {{ ns.avail }} entradas disponibles
                 </p>
-                {% if event.max_tickets - event.tickets_sold > 0 %}
+                {% if ns.avail > 0 %}
                     <a href="{{ url_for('events.event_detail', event_id=event.event_id) }}" class="btn">Comprar entradas</a>
                 {% else %}
                     <span class="btn btn-disabled">Agotadas</span>
                 {% endif %}
+                </div>
             </article>
             {% endfor %}
         </div>

@@ -50,15 +50,17 @@ def client(app):
 
 @pytest.fixture()
 def sample_event_data():
-    """Datos de ejemplo para crear un evento."""
+    """Datos de ejemplo para crear un evento (formato formulario)."""
     return {
         "name": "Concierto Test",
         "description": "Un concierto de prueba",
         "date": "2026-07-15T21:00",
         "venue": "Sala Test",
-        "price": "15.00",
         "currency": "eur",
-        "max_tickets": "100",
+        "type_name[]": ["General"],
+        "type_price[]": ["15.00"],
+        "type_max_tickets[]": ["100"],
+        "type_id[]": [""],
     }
 
 
@@ -71,9 +73,10 @@ def created_event(mock_db):
         "description": "Descripcion del evento",
         "date": "2026-08-20T20:00",
         "venue": "Sala Principal",
-        "price": 25.00,
         "currency": "eur",
-        "max_tickets": 50,
+        "ticket_types": [
+            {"name": "General", "price": 25.00, "max_tickets": 50},
+        ],
     })
 
 
@@ -81,12 +84,16 @@ def created_event(mock_db):
 def created_ticket(mock_db, created_event):
     """Ticket ya insertado en la BD de prueba."""
     from app.models.ticket import create_ticket
+    tt = created_event["ticket_types"][0]
     return create_ticket({
         "event_id": created_event["event_id"],
         "order_id": "order-test-001",
         "buyer_name": "Juan Test",
         "buyer_email": "juan@test.com",
-        "price": created_event["price"],
+        "attendee_name": "Juan Test",
+        "ticket_type_id": tt["type_id"],
+        "ticket_type_name": tt["name"],
+        "price": tt["price"],
         "currency": created_event["currency"],
         "stripe_session_id": "cs_test_123",
         "stripe_payment_intent": "pi_test_123",

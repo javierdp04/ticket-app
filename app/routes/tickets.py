@@ -3,12 +3,16 @@ import io
 
 from app.services import ticket_service, event_service
 from app.services import qr_service, pdf_service
+from app.utils.sanitize import valid_uuid
 
 tickets_bp = Blueprint("tickets", __name__)
 
 
 @tickets_bp.route("/ticket/<ticket_id>")
 def download_ticket(ticket_id):
+    ticket_id = valid_uuid(ticket_id)
+    if not ticket_id:
+        abort(404)
     ticket = ticket_service.get_ticket(ticket_id)
     if not ticket:
         abort(404)

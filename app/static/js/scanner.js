@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const scannerContainer = document.getElementById("scanner-container");
     const scanResult = document.getElementById("scan-result");
 
+    let scanning = true;
+
     // Autenticacion con PIN
     if (pinSubmit) {
         pinSubmit.addEventListener("click", function () {
@@ -46,10 +48,22 @@ document.addEventListener("DOMContentLoaded", function () {
             { facingMode: "environment" },
             { fps: 10, qrbox: { width: 250, height: 250 } },
             onScanSuccess
-        );
+        ).catch(function (err) {
+            scanResult.className = "invalid";
+            if (window.location.protocol !== "https:") {
+                scanResult.textContent =
+                    "La camara requiere HTTPS. Accede con https:// en la URL.";
+            } else {
+                scanResult.textContent =
+                    "No se pudo acceder a la camara: " + err;
+            }
+        });
     }
 
     function onScanSuccess(decodedText) {
+        if (!scanning) return;
+        scanning = false;
+
         // Extraer ticket_id de la URL del QR
         const parts = decodedText.split("/");
         const ticketId = parts[parts.length - 1];
@@ -63,7 +77,8 @@ document.addEventListener("DOMContentLoaded", function () {
             .then((data) => {
                 if (data.valid) {
                     scanResult.className = "valid";
-                    scanResult.textContent = "ENTRADA VALIDA - " + data.buyer_name;
+                    scanResult.innerHTML = "<strong>ENTRADA VALIDA</strong><br>" +
+                        data.attendee_name + "<br>" + data.ticket_type;
                 } else {
                     scanResult.className = "invalid";
                     scanResult.textContent = "NO VALIDA - " + data.reason;
@@ -72,6 +87,9 @@ document.addEventListener("DOMContentLoaded", function () {
             .catch(() => {
                 scanResult.className = "invalid";
                 scanResult.textContent = "Error de conexion";
+            })
+            .finally(() => {
+                setTimeout(() => { scanning = true; }, 3000);
             });
     }
 });

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Admin - Ticket App{% endblock %}
+{% block title %}Admin - Eventum Spain{% endblock %}
 
 {% block content %}
 <section class="admin-dashboard">
@@ -25,14 +25,20 @@
         </thead>
         <tbody>
             {% for event in events %}
+            {% set ns = namespace(sold=0, cap=0, rev=0.0) %}
+            {% for tt in event.ticket_types|default([]) %}
+                {% set ns.sold = ns.sold + tt.tickets_sold %}
+                {% set ns.cap = ns.cap + tt.max_tickets %}
+                {% set ns.rev = ns.rev + (tt.tickets_sold * tt.price) %}
+            {% endfor %}
             <tr>
                 <td><a href="{{ url_for('admin.event_detail', event_id=event.event_id) }}">{{ event.name }}</a></td>
                 <td>{{ event.date }}</td>
                 <td>
                     <span class="status-badge status-{{ event.status }}">{{ event.status }}</span>
                 </td>
-                <td>{{ event.tickets_sold }} / {{ event.max_tickets }}</td>
-                <td>{{ "%.2f"|format(event.tickets_sold * event.price) }} {{ event.currency|upper }}</td>
+                <td>{{ ns.sold }} / {{ ns.cap }}</td>
+                <td>{{ "%.2f"|format(ns.rev) }} {{ event.currency|upper }}</td>
                 <td class="actions">
                     <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}">Editar</a>
                     {% if event.status == 'active' %}
@@ -58,4 +64,8 @@
         </tbody>
     </table>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 {% endblock %}

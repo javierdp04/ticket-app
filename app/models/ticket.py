@@ -12,6 +12,8 @@ def create_ticket(data):
         "buyer_name": data["buyer_name"],
         "buyer_email": data["buyer_email"],
         "attendee_name": data.get("attendee_name", data["buyer_name"]),
+        "ticket_type_id": data.get("ticket_type_id", ""),
+        "ticket_type_name": data.get("ticket_type_name", "General"),
         "price": float(data["price"]),
         "currency": data.get("currency", "eur"),
         "stripe_session_id": data.get("stripe_session_id"),

@@ -1,43 +1,55 @@
 """Tests de las rutas de checkout."""
+import json
 from unittest.mock import patch, MagicMock
 
 
 class TestCreateSession:
     def test_datos_incompletos_devuelve_400(self, client, created_event):
+        tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
             "event_id": created_event["event_id"],
-            "buyer_name": "",
+            "buyer_first_name": "",
+            "buyer_last_name": "",
             "buyer_email": "test@test.com",
-            "quantity": "1",
+            f"quantity_{tt['type_id']}": "1",
         })
         assert response.status_code == 400
 
-    def test_evento_inexistente_devuelve_404(self, client):
+    def test_evento_inexistente_devuelve_400(self, client):
+        """Un event_id que no es UUID valido se rechaza como datos incompletos."""
         response = client.post("/checkout/create-session", data={
             "event_id": "no-existe",
-            "buyer_name": "Test",
+            "buyer_first_name": "Test",
+            "buyer_last_name": "User",
             "buyer_email": "test@test.com",
-            "quantity": "1",
         })
-        assert response.status_code == 404
+        assert response.status_code == 400
 
-    def test_evento_no_activo_devuelve_404(self, client, created_event):
+    def test_evento_no_activo_no_reserva(self, client, created_event):
         from app.models.event import change_status
         change_status(created_event["event_id"], "paused")
+        tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
             "event_id": created_event["event_id"],
-            "buyer_name": "Test",
+            "buyer_first_name": "Test",
+            "buyer_last_name": "User",
             "buyer_email": "test@test.com",
-            "quantity": "1",
+            f"quantity_{tt['type_id']}": "1",
+            "attendee_first_name_1": "Test",
+            "attendee_last_name_1": "User",
         })
         assert response.status_code == 404
 
     def test_cantidad_excede_aforo_devuelve_400(self, client, created_event):
+        tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
             "event_id": created_event["event_id"],
-            "buyer_name": "Test",
+            "buyer_first_name": "Test",
+            "buyer_last_name": "User",
             "buyer_email": "test@test.com",
-            "quantity": "999",
+            f"quantity_{tt['type_id']}": "999",
+            "attendee_first_name_1": "Test",
+            "attendee_last_name_1": "User",
         })
         assert response.status_code == 400
 
@@ -47,11 +59,17 @@ class TestCreateSession:
         mock_session.url = "https://checkout.stripe.com/test"
         mock_stripe.return_value = mock_session
 
+        tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
             "event_id": created_event["event_id"],
-            "buyer_name": "Test User",
+            "buyer_first_name": "Test",
+            "buyer_last_name": "User",
             "buyer_email": "test@test.com",
-            "quantity": "2",
+            f"quantity_{tt['type_id']}": "2",
+            "attendee_first_name_1": "Test",
+            "attendee_last_name_1": "User",
+            "attendee_first_name_2": "Other",
+            "attendee_last_name_2": "Person",
         })
         assert response.status_code == 303
         assert response.headers["Location"] == "https://checkout.stripe.com/test"
@@ -60,8 +78,10 @@ class TestCreateSession:
 
 class TestWebhook:
     @patch("app.routes.checkout.stripe_service.verify_webhook")
-    @patch("app.routes.checkout.ticket_service.create_tickets")
+    @patch("app.routes.checkout.ticket_service.create_tickets", return_value=[{"id": "t1"}])
     def test_webhook_valido_crea_tickets(self, mock_create, mock_verify, client, created_event):
+        tt = created_event["ticket_types"][0]
+        items_meta = json.dumps([{"t": tt["type_id"], "q": 2}])
         mock_verify.return_value = {
             "type": "checkout.session.completed",
             "data": {
@@ -73,6 +93,7 @@ class TestWebhook:
                         "buyer_name": "Webhook User",
                         "buyer_email": "webhook@test.com",
                         "quantity": "2",
+                        "items": items_meta,
                     },
                 }
             },

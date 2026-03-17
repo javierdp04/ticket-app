@@ -1,3 +1,4 @@
+from flask import render_template
 from flask_mail import Message
 from app import mail
 
@@ -15,10 +16,20 @@ def send_ticket_email(buyer_email, buyer_name, event_data, pdf_list):
         f"Un saludo."
     )
 
+    html_body = render_template(
+        "email/ticket_email.html",
+        buyer_name=buyer_name,
+        quantity=quantity,
+        event_name=event_data["name"],
+        event_date=event_data["date"],
+        event_venue=event_data["venue"],
+    )
+
     msg = Message(
         subject=subject,
         recipients=[buyer_email],
         body=body,
+        html=html_body,
     )
 
     for i, pdf_bytes in enumerate(pdf_list, start=1):

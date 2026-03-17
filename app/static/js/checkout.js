@@ -2,32 +2,53 @@ document.addEventListener("DOMContentLoaded", function () {
     const form = document.querySelector(".purchase-form");
     if (!form) return;
 
-    const quantityInput = document.getElementById("quantity");
+    const quantityInputs = document.querySelectorAll(".quantity-input");
     const attendeesContainer = document.getElementById("attendees-container");
     const emailInput = document.getElementById("buyer_email");
     const emailConfirmInput = document.getElementById("buyer_email_confirm");
     const emailError = document.getElementById("email-error");
 
+    function getTotalQuantity() {
+        let total = 0;
+        quantityInputs.forEach(function (input) {
+            total += parseInt(input.value) || 0;
+        });
+        return total;
+    }
+
     function updateAttendeeFields() {
-        const qty = parseInt(quantityInput.value) || 1;
+        const qty = getTotalQuantity();
         attendeesContainer.innerHTML = "";
 
-        if (qty > 1) {
-            for (let i = 1; i <= qty; i++) {
-                const div = document.createElement("div");
-                div.className = "form-group";
-                div.innerHTML =
-                    '<label for="attendee_name_' + i + '">Nombre del asistente ' + i + '</label>' +
-                    '<input type="text" id="attendee_name_' + i + '" name="attendee_name_' + i + '" required>';
-                attendeesContainer.appendChild(div);
-            }
+        for (let i = 1; i <= qty; i++) {
+            const row = document.createElement("div");
+            row.className = "form-group attendee-row";
+            row.innerHTML =
+                '<div class="attendee-field">' +
+                    '<label for="attendee_first_name_' + i + '">Nombre del asistente ' + i + '</label>' +
+                    '<input type="text" id="attendee_first_name_' + i + '" name="attendee_first_name_' + i + '" required>' +
+                '</div>' +
+                '<div class="attendee-field">' +
+                    '<label for="attendee_last_name_' + i + '">Apellidos del asistente ' + i + '</label>' +
+                    '<input type="text" id="attendee_last_name_' + i + '" name="attendee_last_name_' + i + '" required>' +
+                '</div>';
+            attendeesContainer.appendChild(row);
         }
     }
 
-    quantityInput.addEventListener("change", updateAttendeeFields);
-    quantityInput.addEventListener("input", updateAttendeeFields);
+    updateAttendeeFields();
+    quantityInputs.forEach(function (input) {
+        input.addEventListener("change", updateAttendeeFields);
+        input.addEventListener("input", updateAttendeeFields);
+    });
 
     form.addEventListener("submit", function (e) {
+        if (getTotalQuantity() < 1) {
+            e.preventDefault();
+            alert("Selecciona al menos una entrada");
+            return;
+        }
+
         if (emailInput.value !== emailConfirmInput.value) {
             e.preventDefault();
             emailError.style.display = "block";
