@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Eventos - Ticket App{% endblock %}
+
+{% block content %}
+<section class="events-list">
+    <h1>Eventos disponibles</h1>
+    {% if events %}
+        <div class="events-grid">
+            {% for event in events %}
+            <article class="event-card">
+                <h2>{{ event.name }}</h2>
+                <p class="event-date">{{ event.date }}</p>
+                <p class="event-venue">{{ event.venue }}</p>
+                <p class="event-price">{{ "%.2f"|format(event.price) }} {{ event.currency|upper }}</p>
+                <p class="event-availability">
+                    {{ event.max_tickets - event.tickets_sold }} entradas disponibles
+                </p>
+                {% if event.max_tickets - event.tickets_sold > 0 %}
+                    <a href="{{ url_for('events.event_detail', event_id=event.event_id) }}" class="btn">Comprar entradas</a>
+                {% else %}
+                    <span class="btn btn-disabled">Agotadas</span>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No hay eventos disponibles en este momento.</p>
+    {% endif %}
+</section>
+{% endblock %}

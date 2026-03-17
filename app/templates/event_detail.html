@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.name }} - Ticket App{% endblock %}
+
+{% block content %}
+<section class="event-detail">
+    <h1>{{ event.name }}</h1>
+    {% if event.description %}
+        <p class="event-description">{{ event.description }}</p>
+    {% endif %}
+    <div class="event-info">
+        <p><strong>Fecha:</strong> {{ event.date }}</p>
+        <p><strong>Lugar:</strong> {{ event.venue }}</p>
+        <p><strong>Precio:</strong> {{ "%.2f"|format(event.price) }} {{ event.currency|upper }}</p>
+        <p><strong>Entradas disponibles:</strong> {{ available }}</p>
+    </div>
+
+    {% if available > 0 %}
+    <form action="{{ url_for('checkout.create_session') }}" method="POST" class="purchase-form">
+        <input type="hidden" name="event_id" value="{{ event.event_id }}">
+        <div class="form-group">
+            <label for="buyer_name">Nombre completo</label>
+            <input type="text" id="buyer_name" name="buyer_name" required>
+        </div>
+        <div class="form-group">
+            <label for="buyer_email">Email</label>
+            <input type="email" id="buyer_email" name="buyer_email" required>
+        </div>
+        <div class="form-group">
+            <label for="quantity">Cantidad de entradas</label>
+            <input type="number" id="quantity" name="quantity" value="1" min="1" max="{{ available }}">
+        </div>
+        <button type="submit" class="btn">Comprar</button>
+    </form>
+    {% else %}
+        <p class="sold-out">Entradas agotadas</p>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/checkout.js') }}"></script>
+{% endblock %}

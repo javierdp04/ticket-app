@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.name }} - Admin{% endblock %}
+
+{% block content %}
+<section class="admin-event-detail">
+    <h1>{{ event.name }}</h1>
+    <p>{{ event.date }} | {{ event.venue }}</p>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Entradas vendidas</h3>
+            <p class="stat-value">{{ stats.total_sold }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Entradas restantes</h3>
+            <p class="stat-value">{{ available }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Ingresos totales</h3>
+            <p class="stat-value">{{ "%.2f"|format(stats.total_revenue) }} {{ event.currency|upper }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Ya usadas</h3>
+            <p class="stat-value">{{ stats.used }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Sin usar</h3>
+            <p class="stat-value">{{ stats.paid }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Aforo ocupado</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ (stats.total_sold / event.max_tickets * 100) if event.max_tickets > 0 else 0 }}%"></div>
+            </div>
+            <p>{{ "%.1f"|format(stats.total_sold / event.max_tickets * 100) if event.max_tickets > 0 else 0 }}%</p>
+        </div>
+    </div>
+
+    <div class="scanner-info">
+        <h2>PIN del escaner</h2>
+        <p class="pin-display">{{ event.scanner_pin }}</p>
+        <p>Comparte este PIN con el personal de puerta. URL del escaner:</p>
+        <code>{{ request.host_url }}scanner/{{ event.event_id }}</code>
+    </div>
+
+    <h2>Ultimas compras</h2>
+    {% if recent %}
+    <table class="purchases-table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Estado</th>
+                <th>Fecha</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in recent %}
+            <tr>
+                <td>{{ ticket.buyer_name }}</td>
+                <td>{{ ticket.buyer_email }}</td>
+                <td><span class="status-badge status-{{ ticket.status }}">{{ ticket.status }}</span></td>
+                <td>{{ ticket.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>Aun no hay compras para este evento.</p>
+    {% endif %}
+
+    <div class="form-actions">
+        <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}" class="btn">Editar evento</a>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Volver</a>
+    </div>
+</section>
+{% endblock %}

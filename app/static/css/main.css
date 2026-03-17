@@ -1,0 +1,333 @@
+/* Reset y base */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: #fafafa;
+}
+
+/* Layout */
+header {
+    background: #1a1a2e;
+    padding: 1rem 2rem;
+}
+
+header nav {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+header .logo {
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+main {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 2rem;
+}
+
+footer {
+    text-align: center;
+    padding: 2rem;
+    color: #888;
+    font-size: 0.875rem;
+}
+
+/* Botones */
+.btn {
+    display: inline-block;
+    padding: 0.6rem 1.5rem;
+    background: #1a1a2e;
+    color: #fff;
+    text-decoration: none;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn:hover {
+    background: #16213e;
+}
+
+.btn-secondary {
+    background: #6c757d;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: #1a1a2e;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+/* Formularios */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+}
+
+/* Grid de eventos */
+.events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.event-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.event-card h2 {
+    margin-bottom: 0.5rem;
+}
+
+.event-card p {
+    margin-bottom: 0.25rem;
+    color: #555;
+}
+
+.event-card .btn {
+    margin-top: 1rem;
+}
+
+/* Detalle de evento */
+.event-detail {
+    max-width: 600px;
+}
+
+.event-info {
+    margin: 1.5rem 0;
+}
+
+.purchase-form {
+    margin-top: 1.5rem;
+    max-width: 400px;
+}
+
+.sold-out {
+    font-size: 1.25rem;
+    color: #dc3545;
+    font-weight: 700;
+    margin-top: 1rem;
+}
+
+/* Paginas de mensaje */
+.message-page {
+    text-align: center;
+    padding: 3rem 0;
+}
+
+.message-page h1 {
+    margin-bottom: 1rem;
+}
+
+.message-page p {
+    margin-bottom: 0.5rem;
+    color: #555;
+}
+
+.message-page .btn {
+    margin-top: 1.5rem;
+}
+
+/* Admin */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.admin-header div {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.events-table,
+.purchases-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.events-table th,
+.events-table td,
+.purchases-table th,
+.purchases-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.events-table th,
+.purchases-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-active, .status-paid { background: #d4edda; color: #155724; }
+.status-paused { background: #fff3cd; color: #856404; }
+.status-finished, .status-cancelled { background: #e2e3e5; color: #383d41; }
+.status-used { background: #cce5ff; color: #004085; }
+
+/* Stats */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.stat-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.stat-card h3 {
+    font-size: 0.875rem;
+    color: #888;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #1a1a2e;
+    border-radius: 4px;
+}
+
+/* Scanner */
+.scanner-page {
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.scanner-info {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+
+.pin-display {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.5rem;
+    font-family: monospace;
+}
+
+#reader {
+    margin: 1rem auto;
+    max-width: 400px;
+}
+
+#scan-result {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+#scan-result.valid {
+    background: #d4edda;
+    color: #155724;
+}
+
+#scan-result.invalid {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Login */
+.login-form {
+    max-width: 300px;
+    margin: 1rem auto;
+}
+
+.error {
+    color: #dc3545;
+    margin-top: 0.5rem;
+}

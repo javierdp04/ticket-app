@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Escaner - {{ event.name }}{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="scanner-page">
+    <h1>Escaner: {{ event.name }}</h1>
+
+    <div id="pin-form" {% if authenticated %}style="display:none"{% endif %}>
+        <p>Introduce el PIN del evento para acceder al escaner.</p>
+        <div class="form-group">
+            <input type="text" id="pin-input" maxlength="6" placeholder="000000" inputmode="numeric">
+            <button id="pin-submit" class="btn">Acceder</button>
+        </div>
+        <p id="pin-error" class="error" style="display:none"></p>
+    </div>
+
+    <div id="scanner-container" {% if not authenticated %}style="display:none"{% endif %}>
+        <div id="reader"></div>
+        <div id="scan-result"></div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const EVENT_ID = "{{ event.event_id }}";
+</script>
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+{% endblock %}

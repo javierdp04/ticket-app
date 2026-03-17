@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Ticket App{% endblock %}
+
+{% block content %}
+<section class="admin-dashboard">
+    <div class="admin-header">
+        <h1>Panel de Administracion</h1>
+        <div>
+            <a href="{{ url_for('admin.new_event') }}" class="btn">Crear nuevo evento</a>
+            <a href="{{ url_for('admin.logout') }}" class="btn btn-secondary">Cerrar sesion</a>
+        </div>
+    </div>
+
+    <table class="events-table">
+        <thead>
+            <tr>
+                <th>Evento</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Vendidas / Total</th>
+                <th>Ingresos</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in events %}
+            <tr>
+                <td><a href="{{ url_for('admin.event_detail', event_id=event.event_id) }}">{{ event.name }}</a></td>
+                <td>{{ event.date }}</td>
+                <td>
+                    <span class="status-badge status-{{ event.status }}">{{ event.status }}</span>
+                </td>
+                <td>{{ event.tickets_sold }} / {{ event.max_tickets }}</td>
+                <td>{{ "%.2f"|format(event.tickets_sold * event.price) }} {{ event.currency|upper }}</td>
+                <td class="actions">
+                    <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}">Editar</a>
+                    {% if event.status == 'active' %}
+                        <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
+                            <input type="hidden" name="status" value="paused">
+                            <button type="submit" class="btn-link">Pausar</button>
+                        </form>
+                    {% elif event.status == 'paused' %}
+                        <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
+                            <input type="hidden" name="status" value="active">
+                            <button type="submit" class="btn-link">Activar</button>
+                        </form>
+                    {% endif %}
+                    {% if event.status != 'finished' %}
+                        <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
+                            <input type="hidden" name="status" value="finished">
+                            <button type="submit" class="btn-link">Finalizar</button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}
