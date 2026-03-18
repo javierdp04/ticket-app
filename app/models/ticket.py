@@ -18,8 +18,10 @@ def create_ticket(data):
         "currency": data.get("currency", "eur"),
         "stripe_session_id": data.get("stripe_session_id"),
         "stripe_payment_intent": data.get("stripe_payment_intent"),
+        "access_code_used": data.get("access_code_used", ""),
         "status": "paid",
         "qr_code": "",
+        "email_sent": False,
         "created_at": datetime.now(timezone.utc),
         "used_at": None,
     }
@@ -78,6 +80,13 @@ def get_event_stats(event_id):
 
     stats["total_sold"] = stats["paid"] + stats["used"]
     return stats
+
+
+def mark_email_sent(order_id):
+    db.tickets.update_many(
+        {"order_id": order_id},
+        {"$set": {"email_sent": True}},
+    )
 
 
 def get_recent_purchases(event_id, limit=20):

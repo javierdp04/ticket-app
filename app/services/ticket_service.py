@@ -1,9 +1,12 @@
 import json
+import logging
 import uuid
 
 from app.models import ticket as ticket_model
 from app.models import event as event_model
 from app.services import qr_service, pdf_service, email_service
+
+logger = logging.getLogger(__name__)
 
 
 def create_tickets(stripe_session, event, items):
@@ -28,6 +31,9 @@ def create_tickets(stripe_session, event, items):
         total_qty = sum(i["quantity"] for i in items)
         attendee_names = [buyer_name] * total_qty
 
+    # Parse consumed access codes from metadata
+    codes_by_type = parse_access_codes_from_metadata(metadata)
+
     tickets = []
     pdf_list = []
     attendee_idx = 0
@@ -38,10 +44,20 @@ def create_tickets(stripe_session, event, items):
         tt = event_model.get_ticket_type(event, type_id)
         type_name = tt["name"] if tt else "General"
         price = tt["price"] if tt else 0
+        type_codes = codes_by_type.get(type_id, [])
+        reusable = tt.get("access_codes_reusable") if tt else False
 
-        for _ in range(quantity):
+        for j in range(quantity):
             attendee_name = attendee_names[attendee_idx] if attendee_idx < len(attendee_names) else buyer_name
             attendee_idx += 1
+
+            # Determine which access code to record on this ticket
+            access_code = ""
+            if type_codes:
+                if reusable:
+                    access_code = type_codes[0]
+                elif j < len(type_codes):
+                    access_code = type_codes[j]
 
             ticket = ticket_model.create_ticket({
                 "event_id": event["event_id"],
@@ -55,6 +71,7 @@ def create_tickets(stripe_session, event, items):
                 "currency": event["currency"],
                 "stripe_session_id": session_id,
                 "stripe_payment_intent": stripe_session.get("payment_intent"),
+                "access_code_used": access_code,
             })
 
             qr_bytes, qr_url = qr_service.generate_qr(ticket["ticket_id"])
@@ -64,7 +81,11 @@ def create_tickets(stripe_session, event, items):
             pdf_list.append(pdf_bytes)
             tickets.append(ticket)
 
-    email_service.send_ticket_email(buyer_email, buyer_name, event, pdf_list)
+    try:
+        email_service.send_ticket_email(buyer_email, buyer_name, event, pdf_list)
+        ticket_model.mark_email_sent(order_id)
+    except Exception as e:
+        logger.error("Error enviando email a %s (order %s): %s", buyer_email, order_id, e)
 
     return tickets
 
@@ -77,6 +98,21 @@ def parse_items_from_metadata(metadata):
         return [{"type_id": i["t"], "quantity": int(i["q"])} for i in compact]
     except (json.JSONDecodeError, TypeError, KeyError):
         return []
+
+
+def parse_access_codes_from_metadata(metadata):
+    """Parse consumed access codes from Stripe metadata.
+
+    Returns dict mapping type_id to list of code strings.
+    """
+    raw = metadata.get("access_codes", "")
+    if not raw:
+        return {}
+    try:
+        entries = json.loads(raw)
+        return {e["t"]: e["c"] for e in entries}
+    except (json.JSONDecodeError, TypeError, KeyError):
+        return {}
 
 
 def get_ticket(ticket_id):

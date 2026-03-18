@@ -3,10 +3,12 @@ import stripe
 from flask import current_app
 
 
-def create_checkout_session(event, buyer_name, buyer_email, items, attendee_names):
+def create_checkout_session(event, buyer_name, buyer_email, items, attendee_names,
+                            consumed_codes=None):
     """Create a Stripe checkout session with multiple ticket types.
 
     items: list of {"type_id": str, "type_name": str, "quantity": int, "price": float}
+    consumed_codes: dict mapping type_id to list of consumed code strings (optional)
     """
     stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
     base_url = current_app.config["BASE_URL"]
@@ -36,6 +38,26 @@ def create_checkout_session(event, buyer_name, buyer_email, items, attendee_name
     if len(attendee_names_json) > 490:
         attendee_names_json = ""  # fallback: ticket_service uses buyer_name
 
+    # Access codes consumed during this session (for release on expiry)
+    access_codes_json = ""
+    if consumed_codes:
+        access_codes_json = json.dumps([
+            {"t": tid, "c": codes} for tid, codes in consumed_codes.items()
+        ])
+        if len(access_codes_json) > 490:
+            access_codes_json = ""
+
+    metadata = {
+        "event_id": event["event_id"],
+        "buyer_name": buyer_name,
+        "buyer_email": buyer_email,
+        "quantity": str(total_quantity),
+        "items": items_meta,
+        "attendee_names": attendee_names_json,
+    }
+    if access_codes_json:
+        metadata["access_codes"] = access_codes_json
+
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=line_items,
@@ -43,14 +65,7 @@ def create_checkout_session(event, buyer_name, buyer_email, items, attendee_name
         success_url=f"{base_url}/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{base_url}/cancel",
         customer_email=buyer_email,
-        metadata={
-            "event_id": event["event_id"],
-            "buyer_name": buyer_name,
-            "buyer_email": buyer_email,
-            "quantity": str(total_quantity),
-            "items": items_meta,
-            "attendee_names": attendee_names_json,
-        },
+        metadata=metadata,
     )
     return session
 

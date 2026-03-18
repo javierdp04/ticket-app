@@ -1,3 +1,4 @@
+import click
 from flask import Flask
 from flask_mail import Mail
 from flask_limiter import Limiter
@@ -5,7 +6,7 @@ from flask_limiter.util import get_remote_address
 from pymongo import MongoClient
 
 mail = Mail()
-limiter = Limiter(key_func=get_remote_address, default_limits=["120 per minute"])
+limiter = Limiter(key_func=get_remote_address, default_limits=["120 per minute"], storage_uri="memory://")
 mongo_client = None
 db = None
 
@@ -40,5 +41,13 @@ def create_app():
     app.register_blueprint(tickets_bp)
     app.register_blueprint(scanner_bp)
     app.register_blueprint(admin_bp)
+
+    @app.cli.command("cleanup-reservations")
+    @click.option("--max-age", default=35, help="Max reservation age in minutes")
+    def cleanup_reservations_cmd(max_age):
+        """Libera reservas huerfanas mas antiguas que --max-age minutos."""
+        from app.services import event_service
+        count = event_service.cleanup_stale_reservations(max_age)
+        click.echo(f"Reservas liberadas: {count}")
 
     return app

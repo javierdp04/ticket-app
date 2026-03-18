@@ -116,6 +116,34 @@ def release_reservation(event_id, ticket_type_id, quantity):
     event_model.release_reservation(event_id, ticket_type_id, quantity)
 
 
+def save_reservation(event_id, type_id, quantity, stripe_session_id):
+    event_model.save_reservation(event_id, type_id, quantity, stripe_session_id)
+
+
+def delete_reservations_by_session(stripe_session_id):
+    return event_model.delete_reservations_by_session(stripe_session_id)
+
+
+def cleanup_stale_reservations(max_age_minutes=35):
+    """Release reservations older than max_age_minutes (Stripe default expiry is 30 min)."""
+    stale = event_model.get_stale_reservations(max_age_minutes)
+    released = 0
+    for r in stale:
+        # Atomic delete ensures only one process releases each reservation
+        if event_model.delete_reservation(r["_id"]):
+            event_model.release_reservation(r["event_id"], r["type_id"], r["quantity"])
+            released += 1
+    return released
+
+
+def validate_and_consume_access_codes(event_id, type_id, codes_input):
+    return event_model.validate_and_consume_access_codes(event_id, type_id, codes_input)
+
+
+def release_access_codes(event_id, type_id, codes):
+    event_model.release_access_codes(event_id, type_id, codes)
+
+
 def verify_scanner_pin(event_id, pin):
     event = event_model.get_event(event_id)
     if not event:

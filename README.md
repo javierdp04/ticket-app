@@ -37,6 +37,7 @@ Aplicacion web full-stack para la **venta de entradas de multiples eventos**. El
 - Creacion idempotente de tickets (previene duplicados por webhook + success)
 - Escaner QR protegido con PIN independiente por evento
 - Imagen/banner opcional por evento (subida desde el panel de admin, max 5 MB)
+- **Codigos de acceso por tipo de entrada** (reutilizables o de un solo uso) para ventas restringidas/invitaciones
 
 ---
 
@@ -156,7 +157,13 @@ Cada documento representa un evento gestionado por el administrador.
       "price": 60.00,
       "max_tickets": 50,
       "tickets_sold": 0,
-      "tickets_reserved": 0
+      "tickets_reserved": 0,
+      "access_codes_enabled": true,
+      "access_codes_reusable": false,
+      "access_codes": [
+        { "code": "VERANO2026", "used": false },
+        { "code": "AMIGO123", "used": true }
+      ]
     }
   ],
   "status": "active | paused | finished",
@@ -174,6 +181,9 @@ Cada documento representa un evento gestionado por el administrador.
 - `max_tickets` -- Aforo maximo para este tipo
 - `tickets_sold` -- Entradas vendidas (confirmadas) de este tipo
 - `tickets_reserved` -- Entradas reservadas (en proceso de pago) de este tipo
+- `access_codes_enabled` -- (opcional, bool) Si `true`, este tipo requiere un codigo de acceso para comprar
+- `access_codes_reusable` -- (opcional, bool) Si `true`, un unico codigo sirve para todos los compradores. Si `false`, cada codigo es de un solo uso
+- `access_codes` -- (opcional, array) Lista de objetos `{ "code": "ABC", "used": false }`. Los codigos se almacenan en mayusculas. Para tipos reutilizables el array tiene un solo elemento y `used` permanece siempre `false`
 
 **Estados posibles de `status`:**
 - `active` -- evento visible en la pagina principal con venta de entradas habilitada
@@ -199,6 +209,7 @@ Cada documento representa **una entrada individual** comprada.
   "currency": "eur",
   "stripe_session_id": "cs_live_...",
   "stripe_payment_intent": "pi_...",
+  "access_code_used": "VERANO2026",
   "status": "paid | used | cancelled",
   "qr_code": "URL codificada en el QR",
   "created_at": "2026-01-01T20:00:00Z",
@@ -231,10 +242,17 @@ Ve los tipos de entrada disponibles con precios y aforo
         |
         v
 Selecciona cantidad por cada tipo + nombre de cada asistente
+(+ codigo de acceso si el tipo lo requiere)
+        |
+        v
+Si algun tipo requiere codigo de acceso:
+  - Reutilizable: se valida que el codigo coincida
+  - Un solo uso: se valida y consume cada codigo (uno por asistente)
+  Si el codigo es incorrecto: error inline via AJAX sin cambiar de pagina
         |
         v
 Flask reserva atomicamente las entradas solicitadas (optimistic locking)
-Si falla alguna reserva, rollback de las anteriores
+Si falla alguna reserva, rollback de las anteriores + codigos consumidos
         |
         v
 Flask crea una Stripe Checkout Session
@@ -245,7 +263,7 @@ Usuario es redirigido a la pagina de pago de Stripe
         |
         |-- Pago cancelado --> /cancel
         |   Stripe envia webhook "session.expired"
-        |   Se liberan las reservas
+        |   Se liberan las reservas + codigos de acceso consumidos
         |
         |-- Pago exitoso
                 |
@@ -291,8 +309,8 @@ Usuario es redirigido a la pagina de pago de Stripe
 - `GET /event/<event_id>` -- Detalle de evento con selector de tipos de entrada. Muestra cada tipo con nombre, precio, disponibilidad y campo de cantidad.
 
 ### `routes/checkout.py`
-- `POST /checkout/create-session` -- Recibe event_id, nombre/apellidos del comprador, email, cantidades por tipo de entrada, y nombres de asistentes. Reserva atomicamente las entradas, crea una Stripe Checkout Session con line items por tipo, y redirige a Stripe. **Rate limited: 10/min.**
-- `POST /checkout/webhook` -- Recibe eventos de Stripe. Procesa `checkout.session.completed` (crea tickets + confirma reservas) y `checkout.session.expired` (libera reservas).
+- `POST /checkout/create-session` -- Recibe event_id, nombre/apellidos del comprador, email, cantidades por tipo de entrada, nombres de asistentes, y codigos de acceso. Valida y consume codigos de acceso, reserva atomicamente las entradas, crea una Stripe Checkout Session con line items por tipo, y redirige a Stripe. Soporta peticiones AJAX (devuelve JSON con `redirect` o `error`). **Rate limited: 10/min.**
+- `POST /checkout/webhook` -- Recibe eventos de Stripe. Procesa `checkout.session.completed` (crea tickets + confirma reservas) y `checkout.session.expired` (libera reservas + codigos de acceso consumidos).
 - `GET /success` -- Pagina de confirmacion tras pago exitoso. Tambien intenta crear tickets como fallback idempotente si el webhook no ha llegado aun.
 - `GET /cancel` -- Pagina mostrada si el usuario cancela el pago.
 
@@ -321,17 +339,20 @@ Usuario es redirigido a la pagina de pago de Stripe
 - `reserve_tickets(event_id, type_id, qty)` -- Reserva atomica con optimistic locking.
 - `confirm_reservation(event_id, type_id, qty)` -- Confirma reserva (reserved -> sold).
 - `release_reservation(event_id, type_id, qty)` -- Libera reserva.
+- `validate_and_consume_access_codes(event_id, type_id, codes_input)` -- Valida y consume codigos de acceso atomicamente (optimistic locking). Para reutilizables recibe un string; para un solo uso, una lista de codigos individuales.
+- `release_access_codes(event_id, type_id, codes)` -- Libera codigos de acceso consumidos (al expirar el pago).
 - `get_total_capacity(event)` -- Suma `max_tickets` de todos los tipos.
 - `get_total_sold(event)` -- Suma `tickets_sold` de todos los tipos.
 - `get_total_available(event)` -- Suma `max_tickets - sold - reserved` de todos los tipos.
 
 ### `services/stripe_service.py`
-- `create_checkout_session(event, buyer_name, buyer_email, items, attendee_names)` -- Crea Stripe Checkout Session con line items por tipo. Almacena items y nombres de asistentes en metadata.
+- `create_checkout_session(event, buyer_name, buyer_email, items, attendee_names, consumed_codes)` -- Crea Stripe Checkout Session con line items por tipo. Almacena items, nombres de asistentes y codigos de acceso consumidos en metadata.
 - `verify_webhook(payload, sig_header)` -- Verifica firma del webhook.
 
 ### `services/ticket_service.py`
-- `create_tickets(stripe_session, event, items)` -- Crea N tickets (uno por entrada). Idempotente por `stripe_session_id`. Genera QR, PDF, y envia email.
+- `create_tickets(stripe_session, event, items)` -- Crea N tickets (uno por entrada). Idempotente por `stripe_session_id`. Genera QR, PDF, y envia email. Asigna `access_code_used` a cada ticket si aplica.
 - `parse_items_from_metadata(metadata)` -- Decodifica items compactos de metadata de Stripe.
+- `parse_access_codes_from_metadata(metadata)` -- Decodifica codigos de acceso consumidos de metadata de Stripe.
 - `validate_ticket(ticket_id)` -- Valida y marca como usada. Devuelve nombre del asistente y tipo de entrada.
 - `get_event_stats(event_id)` -- Estadisticas agregadas (vendidas, usadas, ingresos).
 - `get_recent_purchases(event_id, limit)` -- Ultimas compras de un evento.
@@ -380,6 +401,7 @@ Acceso: protegido por contrasena definida en `.env` (`ADMIN_PASSWORD`)
   - Nombre del tipo (ej: General, VIP)
   - Precio por entrada
   - Aforo maximo
+  - **Codigo de acceso** (opcional): checkbox para activar, con opcion reutilizable (un unico codigo compartido) o de un solo uso (un codigo por asistente, introducidos en textarea). Al editar, los codigos ya utilizados se preservan automaticamente.
 - Imagen/banner (opcional, JPG/PNG/WEBP, max 5 MB)
 
 Al crear el evento, se genera automaticamente un `scanner_pin` de 6 digitos.
@@ -437,6 +459,12 @@ Al crear el evento, se genera automaticamente un `scanner_pin` de 6 digitos.
 - Optimistic locking en MongoDB para reservas atomicas
 - Rollback automatico si falla la reserva de algun tipo de entrada
 - Reservas liberadas automaticamente cuando Stripe envia evento `session.expired`
+
+### Codigos de acceso
+- Codigos normalizados a mayusculas y sanitizados con `utils/sanitize.py` (max 100 chars, sin HTML)
+- Consumo atomico de codigos con optimistic locking (mismo patron que reservas)
+- Codigos de un solo uso liberados automaticamente si el pago expira (almacenados en metadata de Stripe)
+- Validacion via AJAX: errores mostrados inline sin recargar la pagina
 
 ### Idempotencia
 - Creacion de tickets protegida por `stripe_session_id` (no se crean duplicados)

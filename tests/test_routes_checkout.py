@@ -57,6 +57,7 @@ class TestCreateSession:
     def test_datos_validos_redirige_a_stripe(self, mock_stripe, client, created_event):
         mock_session = MagicMock()
         mock_session.url = "https://checkout.stripe.com/test"
+        mock_session.id = "cs_test_123"
         mock_stripe.return_value = mock_session
 
         tt = created_event["ticket_types"][0]

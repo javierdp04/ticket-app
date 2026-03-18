@@ -1,4 +1,6 @@
 import os
+from datetime import timedelta
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,6 +28,7 @@ class Config:
 
     # Admin
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
     # App
     BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")

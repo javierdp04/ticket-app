@@ -41,7 +41,10 @@
             <div id="ticket-types-container">
                 {% if event and event.ticket_types %}
                     {% for tt in event.ticket_types %}
-                    <div class="ticket-type-row">
+                    {% set all_codes = tt.access_codes|default([]) %}
+                    {% set unused_codes = all_codes|rejectattr('used')|map(attribute='code')|list %}
+                    {% set used_count = all_codes|selectattr('used')|list|length %}
+                    <div class="ticket-type-row" data-access-codes="{{ all_codes|tojson|e }}">
                         <input type="hidden" name="type_id[]" value="{{ tt.type_id }}">
                         <input type="text" name="type_name[]" placeholder="Nombre (ej: General)" value="{{ tt.name }}" required>
                         <input type="number" name="type_price[]" placeholder="Precio" step="0.01" min="0" value="{{ tt.price }}" required>
@@ -49,8 +52,45 @@
                         {% if tt.tickets_sold > 0 %}
                             <span class="form-hint">{{ tt.tickets_sold }} vendidas</span>
                         {% else %}
-                            <button type="button" class="btn-remove-type" onclick="this.parentElement.remove()">&times;</button>
+                            <button type="button" class="btn-remove-type" onclick="removeTicketTypeRow(this)">&times;</button>
                         {% endif %}
+
+                        <input type="hidden" name="access_codes_enabled[]" value="{{ '1' if tt.access_codes_enabled|default(false) else '0' }}" class="ac-enabled-val">
+                        <input type="hidden" name="access_codes_reusable[]" value="{{ '1' if tt.access_codes_reusable|default(false) else '0' }}" class="ac-reusable-val">
+                        <input type="hidden" name="access_codes_list[]" value="" class="ac-list-val">
+
+                        <div class="access-codes-toggle">
+                            <label>
+                                <input type="checkbox" class="ac-enabled-check"
+                                    {{ 'checked' if tt.access_codes_enabled|default(false) }}
+                                    onchange="toggleAccessCodes(this)">
+                                Requiere codigo de acceso
+                            </label>
+                        </div>
+
+                        <div class="access-codes-section" style="{{ '' if tt.access_codes_enabled|default(false) else 'display:none' }}">
+                            <div class="ac-reusable-toggle">
+                                <label>
+                                    <input type="checkbox" class="ac-reusable-check"
+                                        {{ 'checked' if tt.access_codes_reusable|default(false) }}
+                                        onchange="toggleReusable(this)">
+                                    Codigo reutilizable
+                                </label>
+                            </div>
+                            <div class="ac-reusable-section" style="{{ '' if tt.access_codes_reusable|default(false) else 'display:none' }}">
+                                <input type="text" class="ac-single-code" placeholder="Codigo reutilizable"
+                                    value="{{ unused_codes[0] if tt.access_codes_reusable|default(false) and unused_codes else '' }}"
+                                    onchange="updateCodesList(this)" oninput="updateCodesList(this)">
+                            </div>
+                            <div class="ac-single-use-section" style="{{ 'display:none' if tt.access_codes_reusable|default(false) else '' }}">
+                                <textarea class="ac-codes-textarea" placeholder="Un codigo por linea" rows="4"
+                                    onchange="updateCodesList(this)" oninput="updateCodesList(this)"></textarea>
+                                <span class="ac-codes-count">{{ unused_codes|length }} codigos disponibles</span>
+                                {% if used_count > 0 %}
+                                    <span class="form-hint">{{ used_count }} codigo{{ 's' if used_count != 1 }} ya utilizado{{ 's' if used_count != 1 }} (se preservan automaticamente)</span>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -59,7 +99,35 @@
                         <input type="text" name="type_name[]" placeholder="Nombre (ej: General)" required>
                         <input type="number" name="type_price[]" placeholder="Precio" step="0.01" min="0" required>
                         <input type="number" name="type_max_tickets[]" placeholder="Aforo" min="1" required>
-                        <button type="button" class="btn-remove-type" onclick="this.parentElement.remove()">&times;</button>
+                        <button type="button" class="btn-remove-type" onclick="removeTicketTypeRow(this)">&times;</button>
+
+                        <input type="hidden" name="access_codes_enabled[]" value="0" class="ac-enabled-val">
+                        <input type="hidden" name="access_codes_reusable[]" value="0" class="ac-reusable-val">
+                        <input type="hidden" name="access_codes_list[]" value="" class="ac-list-val">
+
+                        <div class="access-codes-toggle">
+                            <label>
+                                <input type="checkbox" class="ac-enabled-check" onchange="toggleAccessCodes(this)">
+                                Requiere codigo de acceso
+                            </label>
+                        </div>
+                        <div class="access-codes-section" style="display:none">
+                            <div class="ac-reusable-toggle">
+                                <label>
+                                    <input type="checkbox" class="ac-reusable-check" onchange="toggleReusable(this)">
+                                    Codigo reutilizable
+                                </label>
+                            </div>
+                            <div class="ac-reusable-section" style="display:none">
+                                <input type="text" class="ac-single-code" placeholder="Codigo reutilizable"
+                                    onchange="updateCodesList(this)" oninput="updateCodesList(this)">
+                            </div>
+                            <div class="ac-single-use-section">
+                                <textarea class="ac-codes-textarea" placeholder="Un codigo por linea" rows="4"
+                                    onchange="updateCodesList(this)" oninput="updateCodesList(this)"></textarea>
+                                <span class="ac-codes-count">0 codigos</span>
+                            </div>
+                        </div>
                     </div>
                 {% endif %}
             </div>
@@ -84,6 +152,88 @@
 </section>
 
 <script>
+function removeTicketTypeRow(btn) {
+    btn.closest('.ticket-type-row').remove();
+}
+
+function toggleAccessCodes(checkbox) {
+    var row = checkbox.closest('.ticket-type-row');
+    var section = row.querySelector('.access-codes-section');
+    var hiddenVal = row.querySelector('.ac-enabled-val');
+    if (checkbox.checked) {
+        section.style.display = '';
+        hiddenVal.value = '1';
+    } else {
+        section.style.display = 'none';
+        hiddenVal.value = '0';
+    }
+}
+
+function toggleReusable(checkbox) {
+    var row = checkbox.closest('.ticket-type-row');
+    var reusableSection = row.querySelector('.ac-reusable-section');
+    var singleUseSection = row.querySelector('.ac-single-use-section');
+    var hiddenVal = row.querySelector('.ac-reusable-val');
+    if (checkbox.checked) {
+        reusableSection.style.display = '';
+        singleUseSection.style.display = 'none';
+        hiddenVal.value = '1';
+    } else {
+        reusableSection.style.display = 'none';
+        singleUseSection.style.display = '';
+        hiddenVal.value = '0';
+    }
+    updateCodesList(checkbox);
+}
+
+function updateCodesList(el) {
+    var row = el.closest('.ticket-type-row');
+    var reusableCheck = row.querySelector('.ac-reusable-check');
+    var hiddenList = row.querySelector('.ac-list-val');
+    if (reusableCheck && reusableCheck.checked) {
+        var singleCode = row.querySelector('.ac-single-code');
+        hiddenList.value = singleCode ? singleCode.value.trim() : '';
+    } else {
+        var textarea = row.querySelector('.ac-codes-textarea');
+        hiddenList.value = textarea ? textarea.value : '';
+        // Update counter
+        var countSpan = row.querySelector('.ac-codes-count');
+        if (countSpan && textarea) {
+            var lines = textarea.value.split('\n').filter(function(l) { return l.trim() !== ''; });
+            countSpan.textContent = lines.length + ' codigo' + (lines.length !== 1 ? 's' : '');
+        }
+    }
+}
+
+// Initialize existing rows: populate textareas from data-access-codes attribute
+document.querySelectorAll('.ticket-type-row[data-access-codes]').forEach(function(row) {
+    try {
+        var codes = JSON.parse(row.getAttribute('data-access-codes'));
+        var unused = codes.filter(function(c) { return !c.used; }).map(function(c) { return c.code; });
+        var reusableCheck = row.querySelector('.ac-reusable-check');
+        if (reusableCheck && reusableCheck.checked) {
+            var singleInput = row.querySelector('.ac-single-code');
+            if (singleInput && unused.length > 0) {
+                singleInput.value = unused[0];
+            }
+        } else {
+            var textarea = row.querySelector('.ac-codes-textarea');
+            if (textarea) {
+                textarea.value = unused.join('\n');
+            }
+        }
+        // Sync to hidden field
+        var hiddenList = row.querySelector('.ac-list-val');
+        if (hiddenList) {
+            if (reusableCheck && reusableCheck.checked) {
+                hiddenList.value = unused.length > 0 ? unused[0] : '';
+            } else {
+                hiddenList.value = unused.join('\n');
+            }
+        }
+    } catch(e) {}
+});
+
 document.getElementById('add-ticket-type').addEventListener('click', function() {
     var container = document.getElementById('ticket-types-container');
     var row = document.createElement('div');
@@ -93,7 +243,25 @@ document.getElementById('add-ticket-type').addEventListener('click', function() 
         '<input type="text" name="type_name[]" placeholder="Nombre (ej: VIP)" required>' +
         '<input type="number" name="type_price[]" placeholder="Precio" step="0.01" min="0" required>' +
         '<input type="number" name="type_max_tickets[]" placeholder="Aforo" min="1" required>' +
-        '<button type="button" class="btn-remove-type" onclick="this.parentElement.remove()">&times;</button>';
+        '<button type="button" class="btn-remove-type" onclick="removeTicketTypeRow(this)">&times;</button>' +
+        '<input type="hidden" name="access_codes_enabled[]" value="0" class="ac-enabled-val">' +
+        '<input type="hidden" name="access_codes_reusable[]" value="0" class="ac-reusable-val">' +
+        '<input type="hidden" name="access_codes_list[]" value="" class="ac-list-val">' +
+        '<div class="access-codes-toggle">' +
+            '<label><input type="checkbox" class="ac-enabled-check" onchange="toggleAccessCodes(this)"> Requiere codigo de acceso</label>' +
+        '</div>' +
+        '<div class="access-codes-section" style="display:none">' +
+            '<div class="ac-reusable-toggle">' +
+                '<label><input type="checkbox" class="ac-reusable-check" onchange="toggleReusable(this)"> Codigo reutilizable</label>' +
+            '</div>' +
+            '<div class="ac-reusable-section" style="display:none">' +
+                '<input type="text" class="ac-single-code" placeholder="Codigo reutilizable" onchange="updateCodesList(this)" oninput="updateCodesList(this)">' +
+            '</div>' +
+            '<div class="ac-single-use-section">' +
+                '<textarea class="ac-codes-textarea" placeholder="Un codigo por linea" rows="4" onchange="updateCodesList(this)" oninput="updateCodesList(this)"></textarea>' +
+                '<span class="ac-codes-count">0 codigos</span>' +
+            '</div>' +
+        '</div>';
     container.appendChild(row);
 });
 </script>
