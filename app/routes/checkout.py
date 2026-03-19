@@ -1,9 +1,14 @@
+import logging
+import threading
+
 import stripe
 from flask import Blueprint, request, redirect, render_template, jsonify, current_app
 from app import limiter
 from app.services import stripe_service, event_service, ticket_service
 from app.utils.sanitize import clean, valid_uuid, valid_email, valid_int
 from app.utils.csrf import csrf_protect
+
+logger = logging.getLogger(__name__)
 
 checkout_bp = Blueprint("checkout", __name__)
 
@@ -169,12 +174,20 @@ def webhook():
 @checkout_bp.route("/success")
 def success():
     session_id = request.args.get("session_id", "")
-    if not isinstance(session_id, str) or len(session_id) > 200:
-        return render_template("success.html")
+    if isinstance(session_id, str) and 0 < len(session_id) <= 200:
+        app = current_app._get_current_object()
+        threading.Thread(
+            target=_process_success, args=(app, session_id), daemon=True
+        ).start()
 
-    if session_id:
+    return render_template("success.html")
+
+
+def _process_success(app, session_id):
+    """Fallback idempotente: crea tickets si el webhook no ha llegado aun."""
+    with app.app_context():
         try:
-            stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
+            stripe.api_key = app.config["STRIPE_SECRET_KEY"]
             session = stripe.checkout.Session.retrieve(session_id)
 
             if session.payment_status == "paid":
@@ -190,9 +203,7 @@ def success():
                             event_service.confirm_reservation(event_id, item["type_id"], item["quantity"])
                     event_service.delete_reservations_by_session(session_id)
         except Exception as e:
-            current_app.logger.error(f"Error procesando pago en success: {e}")
-
-    return render_template("success.html")
+            logger.error("Error procesando pago en success (background): %s", e)
 
 
 @checkout_bp.route("/cancel")

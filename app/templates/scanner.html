@@ -8,15 +8,17 @@
 
 {% block content %}
 <section class="scanner-page">
-    <h1>Escaner: {{ event.name }}</h1>
+    <h1>{{ event.name }}</h1>
 
     <div id="pin-form" {% if authenticated %}style="display:none"{% endif %}>
         <p>Introduce el PIN del evento para acceder al escaner.</p>
-        <div class="form-group">
-            <input type="text" id="pin-input" maxlength="6" placeholder="000000" inputmode="numeric">
-            <button id="pin-submit" class="btn">Acceder</button>
+        <div class="scanner-pin-form">
+            <div class="form-group">
+                <input type="text" id="pin-input" maxlength="6" placeholder="000000" inputmode="numeric">
+                <button id="pin-submit" class="btn">Acceder</button>
+            </div>
+            <p id="pin-error" class="error" style="display:none"></p>
         </div>
-        <p id="pin-error" class="error" style="display:none"></p>
     </div>
 
     <div id="scanner-container" {% if not authenticated %}style="display:none"{% endif %}>

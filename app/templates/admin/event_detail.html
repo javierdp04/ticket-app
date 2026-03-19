@@ -5,7 +5,7 @@
 {% block content %}
 <section class="admin-event-detail">
     <h1>{{ event.name }}</h1>
-    <p>{{ event.date }} | {{ event.venue }}</p>
+    <p>{{ event.date }} &middot; {{ event.venue }}</p>
 
     <div class="stats-grid">
         <div class="stat-card">
@@ -39,6 +39,7 @@
 
     {% if event.ticket_types %}
     <h2>Desglose por tipo de entrada</h2>
+    <div class="table-wrapper">
     <table class="purchases-table">
         <thead>
             <tr>
@@ -61,6 +62,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% endif %}
 
     <div class="scanner-info">
@@ -72,6 +74,7 @@
 
     <h2>Ultimas compras</h2>
     {% if recent %}
+    <div class="table-wrapper">
     <table class="purchases-table">
         <thead>
             <tr>
@@ -94,8 +97,9 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
-        <p>Aun no hay compras para este evento.</p>
+        <p style="color: var(--text-secondary);">Aun no hay compras para este evento.</p>
     {% endif %}
 
     <div class="form-actions">

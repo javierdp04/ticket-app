@@ -13,7 +13,8 @@
 10. [Variables de Entorno](#variables-de-entorno)
 11. [Tests](#tests)
 12. [Decisiones Tomadas](#decisiones-tomadas)
-13. [Pendientes / Decisiones Abiertas](#pendientes--decisiones-abiertas)
+13. [Limpieza de reservas expiradas](#limpieza-de-reservas-expiradas)
+14. [Pendientes / Decisiones Abiertas](#pendientes--decisiones-abiertas)
 
 ---
 
@@ -292,11 +293,13 @@ Usuario es redirigido a la pagina de pago de Stripe
 
 > **Nota sobre idempotencia:** La creacion de tickets verifica `stripe_session_id` para evitar duplicados. Tanto el webhook como la pagina `/success` pueden intentar crear tickets, pero solo el primero en ejecutarse los crea realmente.
 
+> **Nota sobre rendimiento:** La pagina `/success` lanza el procesamiento de tickets en un hilo en background y renderiza la pagina inmediatamente. El mecanismo principal de creacion de tickets es el webhook; `/success` actua como fallback idempotente.
+
 ### Sistema de reservas (tres fases)
 
 1. **Reservar** (`reserve_tickets`): Incrementa `tickets_reserved` atomicamente usando optimistic locking. Verifica que `sold + reserved + quantity <= max_tickets`.
 2. **Confirmar** (`confirm_reservation`): Tras pago exitoso, convierte reservas en ventas (`reserved -= qty`, `sold += qty`).
-3. **Liberar** (`release_reservation`): Si el pago expira o se cancela, libera las reservas (`reserved -= qty`).
+3. **Liberar** (`release_reservation`): Si el pago expira o se cancela, libera las reservas (`reserved -= qty`). Esto ocurre via webhook de Stripe (`session.expired`) o via el job de limpieza de reservas huerfanas.
 
 ---
 
@@ -311,7 +314,7 @@ Usuario es redirigido a la pagina de pago de Stripe
 ### `routes/checkout.py`
 - `POST /checkout/create-session` -- Recibe event_id, nombre/apellidos del comprador, email, cantidades por tipo de entrada, nombres de asistentes, y codigos de acceso. Valida y consume codigos de acceso, reserva atomicamente las entradas, crea una Stripe Checkout Session con line items por tipo, y redirige a Stripe. Soporta peticiones AJAX (devuelve JSON con `redirect` o `error`). **Rate limited: 10/min.**
 - `POST /checkout/webhook` -- Recibe eventos de Stripe. Procesa `checkout.session.completed` (crea tickets + confirma reservas) y `checkout.session.expired` (libera reservas + codigos de acceso consumidos).
-- `GET /success` -- Pagina de confirmacion tras pago exitoso. Tambien intenta crear tickets como fallback idempotente si el webhook no ha llegado aun.
+- `GET /success` -- Pagina de confirmacion tras pago exitoso. Lanza en un hilo en background la creacion de tickets como fallback idempotente si el webhook no ha llegado aun (la pagina se renderiza inmediatamente).
 - `GET /cancel` -- Pagina mostrada si el usuario cancela el pago.
 
 ### `routes/tickets.py`
@@ -459,6 +462,7 @@ Al crear el evento, se genera automaticamente un `scanner_pin` de 6 digitos.
 - Optimistic locking en MongoDB para reservas atomicas
 - Rollback automatico si falla la reserva de algun tipo de entrada
 - Reservas liberadas automaticamente cuando Stripe envia evento `session.expired`
+- Job de limpieza (`cleanup-reservations`) libera reservas huerfanas si el webhook falla (ver seccion Limpieza de reservas)
 
 ### Codigos de acceso
 - Codigos normalizados a mayusculas y sanitizados con `utils/sanitize.py` (max 100 chars, sin HTML)
@@ -546,6 +550,25 @@ Ejecutar: `source venv/bin/activate && python -m pytest tests/ -v`
 
 ---
 
+## Limpieza de reservas expiradas
+
+Si un webhook de Stripe no llega (fallo de red, etc.), las reservas quedan huerfanas bloqueando entradas. El comando CLI `cleanup-reservations` libera estas reservas:
+
+```bash
+flask --app run cleanup-reservations --max-age 35
+```
+
+- `--max-age`: minutos de antiguedad minima para considerar una reserva expirada (por defecto 35, Stripe expira sesiones a los 30 min)
+- Se recomienda ejecutar via cron cada 10 minutos:
+
+```cron
+*/10 * * * * cd /ruta/al/proyecto && /ruta/al/venv/bin/flask --app run cleanup-reservations --max-age 35
+```
+
+El proceso es atomico: cada reserva se elimina individualmente antes de liberar las entradas, evitando condiciones de carrera si multiples procesos ejecutan la limpieza simultaneamente.
+
+---
+
 ## Pendientes / Decisiones Abiertas
 
 | # | Decision | Estado |
@@ -554,8 +577,7 @@ Ejecutar: `source venv/bin/activate && python -m pytest tests/ -v`
 | 2 | Hosting y dominio | Pendiente |
 | 3 | Certificado SSL para produccion (actualmente usa adhoc) | Pendiente |
 | 4 | Diseno visual / branding (logo, colores) | Pendiente (funcional por ahora) |
-| 5 | Job de limpieza de reservas expiradas no confirmadas | Pendiente |
-| 6 | Migracion de eventos existentes sin ticket_types | Pendiente si hay datos legacy |
+| 5 | Migracion de eventos existentes sin ticket_types | Pendiente si hay datos legacy |
 
 ---
 

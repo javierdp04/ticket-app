@@ -4,7 +4,8 @@
 
 {% block content %}
 <section class="events-list">
-    <h1>Eventos disponibles</h1>
+    <h1>Descubre eventos</h1>
+    <p class="hero-subtitle">Encuentra y reserva entradas para los mejores eventos</p>
     {% if events %}
         <div class="events-grid">
             {% for event in events %}
@@ -12,42 +13,40 @@
             {% for tt in event.ticket_types|default([]) %}
                 {% set ns.avail = ns.avail + tt.max_tickets - tt.tickets_sold - (tt.tickets_reserved|default(0)) %}
             {% endfor %}
-            <article class="event-card">
-                {% if event.image_filename %}
-                    <div class="event-card-image">
+            <a href="{{ url_for('events.event_detail', event_id=event.event_id) }}" class="event-card">
+                <div class="event-card-media">
+                    {% if event.image_filename %}
                         <img src="{{ url_for('static', filename='uploads/events/' + event.image_filename) }}" alt="{{ event.name }}">
-                    </div>
-                {% else %}
-                    <div class="event-card-placeholder">
-                        <span>{{ event.name }}</span>
-                    </div>
-                {% endif %}
-                <div class="event-card-body">
-                <h2>{{ event.name }}</h2>
-                <p class="event-date">{{ event.date }}</p>
-                <p class="event-venue">{{ event.venue }}</p>
-                {% if event.ticket_types %}
-                    {% set prices = event.ticket_types|map(attribute='price')|list %}
-                    {% if prices|min == prices|max %}
-                        <p class="event-price">{{ "%.2f"|format(prices|min) }} {{ event.currency|upper }}</p>
                     {% else %}
-                        <p class="event-price">Desde {{ "%.2f"|format(prices|min) }} {{ event.currency|upper }}</p>
+                        <div class="event-card-placeholder-bg"></div>
                     {% endif %}
-                {% endif %}
-                <p class="event-availability">
-                    {{ ns.avail }} entradas disponibles
-                </p>
-                {% if ns.avail > 0 %}
-                    <a href="{{ url_for('events.event_detail', event_id=event.event_id) }}" class="btn">Comprar entradas</a>
-                {% else %}
-                    <span class="btn btn-disabled">Agotadas</span>
-                {% endif %}
+                    <div class="event-card-overlay">
+                        {% if event.ticket_types %}
+                            {% set prices = event.ticket_types|map(attribute='price')|list %}
+                            {% if ns.avail < 1 %}
+                                <span class="event-card-badge event-card-badge-soldout">Agotadas</span>
+                            {% elif prices|min == prices|max %}
+                                <span class="event-card-badge">{{ "%.2f"|format(prices|min) }} {{ event.currency|upper }}</span>
+                            {% else %}
+                                <span class="event-card-badge">Desde {{ "%.2f"|format(prices|min) }} {{ event.currency|upper }}</span>
+                            {% endif %}
+                        {% endif %}
+                        <div class="event-card-content">
+                            <h2>{{ event.name }}</h2>
+                            <div class="event-meta">
+                                <span><span class="meta-icon">&#128197;</span> {{ event.date }}</span>
+                                <span><span class="meta-icon">&#128205;</span> {{ event.venue }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </article>
+            </a>
             {% endfor %}
         </div>
     {% else %}
-        <p>No hay eventos disponibles en este momento.</p>
+        <div class="no-events">
+            <p>No hay eventos disponibles en este momento.</p>
+        </div>
     {% endif %}
 </section>
 {% endblock %}

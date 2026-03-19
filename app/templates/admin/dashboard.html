@@ -12,6 +12,7 @@
         </div>
     </div>
 
+    <div class="table-wrapper">
     <table class="events-table">
         <thead>
             <tr>
@@ -40,7 +41,7 @@
                 <td>{{ ns.sold }} / {{ ns.cap }}</td>
                 <td>{{ "%.2f"|format(ns.rev) }} {{ event.currency|upper }}</td>
                 <td class="actions">
-                    <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}">Editar</a>
+                    <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}" class="btn-link">Editar</a>
                     {% if event.status == 'active' %}
                         <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -66,6 +67,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </section>
 {% endblock %}
 

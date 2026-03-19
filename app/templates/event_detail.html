@@ -9,69 +9,84 @@
             <img src="{{ url_for('static', filename='uploads/events/' + event.image_filename) }}" alt="{{ event.name }}">
         </div>
     {% endif %}
-    <h1>{{ event.name }}</h1>
-    {% if event.description %}
-        <p class="event-description">{{ event.description }}</p>
-    {% endif %}
-    <div class="event-info">
-        <p><strong>Fecha:</strong> {{ event.date }}</p>
-        <p><strong>Lugar:</strong> {{ event.venue }}</p>
-    </div>
 
-    {% if available > 0 %}
-    <form action="{{ url_for('checkout.create_session') }}" method="POST" class="purchase-form">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="event_id" value="{{ event.event_id }}">
-
-        <h3>Selecciona tus entradas</h3>
-        {% for tt in event.ticket_types %}
-            {% set tt_available = tt.max_tickets - tt.tickets_sold - (tt.tickets_reserved|default(0)) %}
-            <div class="ticket-type-select">
-                <div class="ticket-type-info">
-                    <strong>{{ tt.name }}</strong>
-                    <span class="ticket-type-price">{{ "%.2f"|format(tt.price) }} {{ event.currency|upper }}</span>
+    <div class="event-detail-layout">
+        <div class="event-detail-info">
+            <h1>{{ event.name }}</h1>
+            {% if event.description %}
+                <p class="event-description">{{ event.description }}</p>
+            {% endif %}
+            <div class="event-info">
+                <div class="event-info-item">
+                    <span class="info-icon">&#128197;</span>
+                    <span>{{ event.date }}</span>
                 </div>
-                {% if tt_available > 0 %}
-                    <div class="ticket-type-controls">
-                        <input type="number" name="quantity_{{ tt.type_id }}" class="quantity-input" value="0" min="0" max="{{ tt_available }}"
-                            {% if tt.access_codes_enabled|default(false) %}
-                            data-requires-code="{{ tt.type_id }}"
-                            data-code-reusable="{{ 'true' if tt.access_codes_reusable|default(false) else 'false' }}"
-                            {% endif %}>
-                        <span class="ticket-type-avail">{{ tt_available }} disponibles</span>
-                    </div>
-                {% else %}
-                    <span class="sold-out-type">Agotadas</span>
-                {% endif %}
+                <div class="event-info-item">
+                    <span class="info-icon">&#128205;</span>
+                    <span>{{ event.venue }}</span>
+                </div>
             </div>
-        {% endfor %}
+        </div>
 
-        <div id="reusable-codes-container"></div>
+        <div class="event-detail-sidebar">
+            {% if available > 0 %}
+            <div class="purchase-card">
+            <form action="{{ url_for('checkout.create_session') }}" method="POST" class="purchase-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="event_id" value="{{ event.event_id }}">
 
-        <div class="form-group">
-            <label for="buyer_first_name">Nombre del comprador</label>
-            <input type="text" id="buyer_first_name" name="buyer_first_name" required>
+                <h3>Selecciona tus entradas</h3>
+                {% for tt in event.ticket_types %}
+                    {% set tt_available = tt.max_tickets - tt.tickets_sold - (tt.tickets_reserved|default(0)) %}
+                    <div class="ticket-type-select">
+                        <div class="ticket-type-info">
+                            <strong>{{ tt.name }}</strong>
+                            <span class="ticket-type-price">{{ "%.2f"|format(tt.price) }} {{ event.currency|upper }}</span>
+                        </div>
+                        {% if tt_available > 0 %}
+                            <div class="ticket-type-controls">
+                                <input type="number" name="quantity_{{ tt.type_id }}" class="quantity-input" value="0" min="0" max="{{ tt_available }}"
+                                    {% if tt.access_codes_enabled|default(false) %}
+                                    data-requires-code="{{ tt.type_id }}"
+                                    data-code-reusable="{{ 'true' if tt.access_codes_reusable|default(false) else 'false' }}"
+                                    {% endif %}>
+                                <span class="ticket-type-avail">{{ tt_available }} disp.</span>
+                            </div>
+                        {% else %}
+                            <span class="sold-out-type">Agotadas</span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+
+                <div id="reusable-codes-container"></div>
+
+                <div class="form-group">
+                    <label for="buyer_first_name">Nombre del comprador</label>
+                    <input type="text" id="buyer_first_name" name="buyer_first_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="buyer_last_name">Apellidos del comprador</label>
+                    <input type="text" id="buyer_last_name" name="buyer_last_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="buyer_email">Email</label>
+                    <input type="email" id="buyer_email" name="buyer_email" required>
+                </div>
+                <div class="form-group">
+                    <label for="buyer_email_confirm">Confirmar email</label>
+                    <input type="email" id="buyer_email_confirm" required>
+                    <span id="email-error" class="form-error" style="display:none;">Los emails no coinciden</span>
+                </div>
+                <div id="attendees-container"></div>
+                <p id="checkout-error" class="form-error" style="display:none;margin-bottom:1rem;"></p>
+                <button type="submit" class="btn btn-buy">Comprar entradas</button>
+            </form>
+            </div>
+            {% else %}
+                <p class="sold-out">Entradas agotadas</p>
+            {% endif %}
         </div>
-        <div class="form-group">
-            <label for="buyer_last_name">Apellidos del comprador</label>
-            <input type="text" id="buyer_last_name" name="buyer_last_name" required>
-        </div>
-        <div class="form-group">
-            <label for="buyer_email">Email</label>
-            <input type="email" id="buyer_email" name="buyer_email" required>
-        </div>
-        <div class="form-group">
-            <label for="buyer_email_confirm">Confirmar email</label>
-            <input type="email" id="buyer_email_confirm" required>
-            <span id="email-error" class="form-error" style="display:none;color:red;">Los emails no coinciden</span>
-        </div>
-        <div id="attendees-container"></div>
-        <p id="checkout-error" class="form-error" style="display:none;color:red;margin-bottom:1rem;"></p>
-        <button type="submit" class="btn">Comprar</button>
-    </form>
-    {% else %}
-        <p class="sold-out">Entradas agotadas</p>
-    {% endif %}
+    </div>
 </section>
 {% endblock %}
 
