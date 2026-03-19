@@ -7,7 +7,7 @@ load_dotenv()
 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
+    SECRET_KEY = os.getenv("SECRET_KEY")
     DEBUG = os.getenv("FLASK_ENV") == "development"
 
     # MongoDB
@@ -30,5 +30,11 @@ class Config:
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
     PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
+    # Session security
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = os.getenv("FLASK_ENV") != "development"
+
     # App
     BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
+    PREFERRED_URL_SCHEME = "https"

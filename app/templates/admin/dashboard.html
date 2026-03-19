@@ -43,17 +43,20 @@
                     <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}">Editar</a>
                     {% if event.status == 'active' %}
                         <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="status" value="paused">
                             <button type="submit" class="btn-link">Pausar</button>
                         </form>
                     {% elif event.status == 'paused' %}
                         <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="status" value="active">
                             <button type="submit" class="btn-link">Activar</button>
                         </form>
                     {% endif %}
                     {% if event.status != 'finished' %}
                         <form method="POST" action="{{ url_for('admin.change_status', event_id=event.event_id) }}" style="display:inline">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="status" value="finished">
                             <button type="submit" class="btn-link">Finalizar</button>
                         </form>

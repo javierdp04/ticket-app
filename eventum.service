@@ -1,0 +1,25 @@
+[Unit]
+Description=Eventum Spain
+After=network.target
+
+[Service]
+# Cambiar tuusuario por el usuario real del sistema
+User=tuusuario
+
+# Cambiar por la ruta real donde esta clonado el repositorio
+WorkingDirectory=/home/tuusuario/ticket-app
+
+# Ruta al .env con las variables de entorno
+EnvironmentFile=/home/tuusuario/ticket-app/.env
+
+# Gunicorn escucha en 127.0.0.1:8000 (Nginx hace de proxy publico)
+# Cambiar tuusuario por el usuario real del sistema
+ExecStart=/home/tuusuario/ticket-app/venv/bin/gunicorn run:app --workers 4 --worker-class gthread --threads 2 --bind 127.0.0.1:8000 --timeout 60
+
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

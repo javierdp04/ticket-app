@@ -42,16 +42,29 @@ def app(mock_db):
     yield application
 
 
+CSRF_TOKEN = "test-csrf-token-for-tests"
+
+
 @pytest.fixture()
 def client(app):
-    """Cliente HTTP de pruebas."""
-    return app.test_client()
+    """Cliente HTTP de pruebas con CSRF token pre-configurado."""
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["_csrf_token"] = CSRF_TOKEN
+    return client
+
+
+@pytest.fixture()
+def csrf():
+    """CSRF token dict for adding to POST form data."""
+    return {"_csrf_token": CSRF_TOKEN}
 
 
 @pytest.fixture()
 def sample_event_data():
     """Datos de ejemplo para crear un evento (formato formulario)."""
     return {
+        "_csrf_token": CSRF_TOKEN,
         "name": "Concierto Test",
         "description": "Un concierto de prueba",
         "date": "2026-07-15T21:00",

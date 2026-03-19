@@ -3,11 +3,6 @@ from app import create_app
 app = create_app()
 
 if __name__ == "__main__":
-    debug = app.config.get("DEBUG", False)
-    # En produccion usar Gunicorn + Nginx con certificado real (Let's Encrypt)
-    app.run(
-        debug=debug,
-        host="0.0.0.0",
-        port=5000,
-        ssl_context="adhoc" if debug else None,
-    )
+    # Solo para desarrollo local. En produccion usar Gunicorn:
+    # gunicorn run:app --workers 4 --bind 127.0.0.1:8000
+    app.run(debug=True, host="127.0.0.1", port=5000)

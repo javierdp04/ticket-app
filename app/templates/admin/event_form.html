@@ -11,6 +11,7 @@
     {% endif %}
 
     <form method="POST" enctype="multipart/form-data" action="{% if event %}{{ url_for('admin.update_event', event_id=event.event_id) }}{% else %}{{ url_for('admin.create_event') }}{% endif %}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="name">Nombre del evento *</label>
             <input type="text" id="name" name="name" value="{{ event.name if event else '' }}" required>
@@ -85,7 +86,13 @@
                             <div class="ac-single-use-section" style="{{ 'display:none' if tt.access_codes_reusable|default(false) else '' }}">
                                 <textarea class="ac-codes-textarea" placeholder="Un codigo por linea" rows="4"
                                     onchange="updateCodesList(this)" oninput="updateCodesList(this)"></textarea>
-                                <span class="ac-codes-count">{{ unused_codes|length }} codigos disponibles</span>
+                                <div class="ac-import-row">
+                                    <span class="ac-codes-count">{{ unused_codes|length }} codigos disponibles</span>
+                                    <label class="btn btn-secondary btn-small ac-import-btn">
+                                        Importar Excel
+                                        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+                                    </label>
+                                </div>
                                 {% if used_count > 0 %}
                                     <span class="form-hint">{{ used_count }} codigo{{ 's' if used_count != 1 }} ya utilizado{{ 's' if used_count != 1 }} (se preservan automaticamente)</span>
                                 {% endif %}
@@ -125,7 +132,13 @@
                             <div class="ac-single-use-section">
                                 <textarea class="ac-codes-textarea" placeholder="Un codigo por linea" rows="4"
                                     onchange="updateCodesList(this)" oninput="updateCodesList(this)"></textarea>
-                                <span class="ac-codes-count">0 codigos</span>
+                                <div class="ac-import-row">
+                                    <span class="ac-codes-count">0 codigos</span>
+                                    <label class="btn btn-secondary btn-small ac-import-btn">
+                                        Importar Excel
+                                        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -234,6 +247,42 @@ document.querySelectorAll('.ticket-type-row[data-access-codes]').forEach(functio
     } catch(e) {}
 });
 
+function importExcel(fileInput) {
+    var file = fileInput.files[0];
+    if (!file) return;
+
+    var row = fileInput.closest('.ticket-type-row');
+    var textarea = row.querySelector('.ac-codes-textarea');
+    var countSpan = row.querySelector('.ac-codes-count');
+
+    var formData = new FormData();
+    formData.append('file', file);
+
+    fetch('{{ url_for("admin.import_codes") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        // Append to existing codes (don't replace)
+        var existing = textarea.value.trim();
+        var newCodes = data.codes.join('\n');
+        textarea.value = existing ? existing + '\n' + newCodes : newCodes;
+        // Update counter and hidden field
+        updateCodesList(textarea);
+    })
+    .catch(function() {
+        alert('Error al importar el archivo');
+    });
+
+    // Reset file input so same file can be re-selected
+    fileInput.value = '';
+}
+
 document.getElementById('add-ticket-type').addEventListener('click', function() {
     var container = document.getElementById('ticket-types-container');
     var row = document.createElement('div');
@@ -259,7 +308,13 @@ document.getElementById('add-ticket-type').addEventListener('click', function() 
             '</div>' +
             '<div class="ac-single-use-section">' +
                 '<textarea class="ac-codes-textarea" placeholder="Un codigo por linea" rows="4" onchange="updateCodesList(this)" oninput="updateCodesList(this)"></textarea>' +
-                '<span class="ac-codes-count">0 codigos</span>' +
+                '<div class="ac-import-row">' +
+                    '<span class="ac-codes-count">0 codigos</span>' +
+                    '<label class="btn btn-secondary btn-small ac-import-btn">' +
+                        'Importar Excel' +
+                        '<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">' +
+                    '</label>' +
+                '</div>' +
             '</div>' +
         '</div>';
     container.appendChild(row);

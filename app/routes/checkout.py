@@ -3,6 +3,7 @@ from flask import Blueprint, request, redirect, render_template, jsonify, curren
 from app import limiter
 from app.services import stripe_service, event_service, ticket_service
 from app.utils.sanitize import clean, valid_uuid, valid_email, valid_int
+from app.utils.csrf import csrf_protect
 
 checkout_bp = Blueprint("checkout", __name__)
 
@@ -19,6 +20,7 @@ def _error(message, status=400):
 
 @checkout_bp.route("/checkout/create-session", methods=["POST"])
 @limiter.limit("10 per minute")
+@csrf_protect
 def create_session():
     event_id = valid_uuid(request.form.get("event_id"))
     buyer_first_name = clean(request.form.get("buyer_first_name", ""), max_length=100)

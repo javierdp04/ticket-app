@@ -125,11 +125,16 @@ def test_delete_image_nonexistent_does_not_raise():
 
 # -- Tests de integracion con rutas de admin --
 
+from tests.conftest import CSRF_TOKEN
+_CT = {"_csrf_token": CSRF_TOKEN}
+
+
 def test_create_event_with_image(client, app):
     with client.session_transaction() as sess:
         sess["admin_authenticated"] = True
 
     data = {
+        **_CT,
         "name": "Evento con imagen",
         "description": "Test",
         "date": "2026-09-01T20:00",
@@ -150,6 +155,7 @@ def test_create_event_rejects_invalid_format(client, app):
         sess["admin_authenticated"] = True
 
     data = {
+        **_CT,
         "name": "Evento malo",
         "description": "",
         "date": "2026-09-01T20:00",
@@ -181,6 +187,7 @@ def test_update_event_replaces_image(client, app, created_event):
     # Ahora actualizamos con nueva imagen
     tt = created_event["ticket_types"][0]
     data = {
+        **_CT,
         "name": created_event["name"],
         "description": created_event["description"],
         "date": created_event["date"],

@@ -6,6 +6,7 @@
 <section class="message-page">
     <h1>Panel de Administracion</h1>
     <form method="POST" class="login-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="password">Contrasena</label>
             <input type="password" id="password" name="password" required>

@@ -1,12 +1,20 @@
+import os
+
 import click
 from flask import Flask
 from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pymongo import MongoClient
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 mail = Mail()
-limiter = Limiter(key_func=get_remote_address, default_limits=["120 per minute"], storage_uri="memory://")
+_rate_limit_storage = os.getenv("REDIS_URL", "memory://")
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["120 per minute"],
+    storage_uri=_rate_limit_storage,
+)
 mongo_client = None
 db = None
 
@@ -16,6 +24,12 @@ def create_app():
 
     app = Flask(__name__)
     app.config.from_object("app.config.Config")
+
+    # Confiar en cabeceras de proxy (Nginx)
+    # x_for=1: un nivel de proxy para X-Forwarded-For
+    # x_proto=1: X-Forwarded-Proto para detectar HTTPS
+    if not app.debug:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # MongoDB
     mongo_client = MongoClient(app.config["MONGO_URI"])
@@ -41,6 +55,19 @@ def create_app():
     app.register_blueprint(tickets_bp)
     app.register_blueprint(scanner_bp)
     app.register_blueprint(admin_bp)
+
+    from app.utils.csrf import generate_csrf_token
+    app.jinja_env.globals["csrf_token"] = generate_csrf_token
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if not app.debug:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
     @app.cli.command("cleanup-reservations")
     @click.option("--max-age", default=35, help="Max reservation age in minutes")

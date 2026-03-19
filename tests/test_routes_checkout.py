@@ -1,12 +1,16 @@
 """Tests de las rutas de checkout."""
 import json
 from unittest.mock import patch, MagicMock
+from tests.conftest import CSRF_TOKEN
+
+CT = {"_csrf_token": CSRF_TOKEN}
 
 
 class TestCreateSession:
     def test_datos_incompletos_devuelve_400(self, client, created_event):
         tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": created_event["event_id"],
             "buyer_first_name": "",
             "buyer_last_name": "",
@@ -18,6 +22,7 @@ class TestCreateSession:
     def test_evento_inexistente_devuelve_400(self, client):
         """Un event_id que no es UUID valido se rechaza como datos incompletos."""
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": "no-existe",
             "buyer_first_name": "Test",
             "buyer_last_name": "User",
@@ -30,6 +35,7 @@ class TestCreateSession:
         change_status(created_event["event_id"], "paused")
         tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": created_event["event_id"],
             "buyer_first_name": "Test",
             "buyer_last_name": "User",
@@ -43,6 +49,7 @@ class TestCreateSession:
     def test_cantidad_excede_aforo_devuelve_400(self, client, created_event):
         tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": created_event["event_id"],
             "buyer_first_name": "Test",
             "buyer_last_name": "User",
@@ -62,6 +69,7 @@ class TestCreateSession:
 
         tt = created_event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": created_event["event_id"],
             "buyer_first_name": "Test",
             "buyer_last_name": "User",

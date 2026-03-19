@@ -1,4 +1,7 @@
 """Tests de las rutas de administracion."""
+from tests.conftest import CSRF_TOKEN
+
+CT = {"_csrf_token": CSRF_TOKEN}
 
 
 class TestAdminLogin:
@@ -7,12 +10,12 @@ class TestAdminLogin:
         assert response.status_code == 200
 
     def test_login_correcto_redirige_a_dashboard(self, client):
-        response = client.post("/admin/login", data={"password": "testpass"})
+        response = client.post("/admin/login", data={**CT, "password": "testpass"})
         assert response.status_code == 302
         assert "/admin" in response.headers["Location"]
 
     def test_login_incorrecto_muestra_error(self, client):
-        response = client.post("/admin/login", data={"password": "wrong"})
+        response = client.post("/admin/login", data={**CT, "password": "wrong"})
         assert response.status_code == 200
         assert b"incorrecta" in response.data
 
@@ -22,7 +25,7 @@ class TestAdminLogin:
         assert "login" in response.headers["Location"]
 
     def test_logout_cierra_sesion(self, client):
-        client.post("/admin/login", data={"password": "testpass"})
+        client.post("/admin/login", data={**CT, "password": "testpass"})
         client.get("/admin/logout")
         response = client.get("/admin")
         assert response.status_code == 302  # redirige a login
@@ -30,7 +33,7 @@ class TestAdminLogin:
 
 class TestAdminDashboard:
     def _login(self, client):
-        client.post("/admin/login", data={"password": "testpass"})
+        client.post("/admin/login", data={**CT, "password": "testpass"})
 
     def test_dashboard_muestra_eventos(self, client, created_event):
         self._login(client)
@@ -46,7 +49,7 @@ class TestAdminDashboard:
 
 class TestAdminCRUDEventos:
     def _login(self, client):
-        client.post("/admin/login", data={"password": "testpass"})
+        client.post("/admin/login", data={**CT, "password": "testpass"})
 
     def test_formulario_nuevo_evento(self, client):
         self._login(client)
@@ -75,6 +78,7 @@ class TestAdminCRUDEventos:
         response = client.post(
             f"/admin/event/{created_event['event_id']}/update",
             data={
+                **CT,
                 "name": "Nombre Actualizado",
                 "description": "Nueva descripcion",
                 "date": "2026-09-01T20:00",
@@ -95,7 +99,7 @@ class TestAdminCRUDEventos:
         self._login(client)
         response = client.post(
             f"/admin/event/{created_event['event_id']}/status",
-            data={"status": "paused"},
+            data={**CT, "status": "paused"},
         )
         assert response.status_code == 302
 
@@ -131,7 +135,7 @@ class TestAdminProteccion:
     def test_cambiar_estado_sin_login(self, client, created_event):
         response = client.post(
             f"/admin/event/{created_event['event_id']}/status",
-            data={"status": "finished"},
+            data={**CT, "status": "finished"},
         )
         assert response.status_code == 302
         assert "login" in response.headers["Location"]

@@ -1,6 +1,7 @@
 """Tests for the access codes system."""
 import json
 from unittest.mock import patch, MagicMock
+from tests.conftest import CSRF_TOKEN
 
 from app.models.event import (
     create_event,
@@ -8,6 +9,8 @@ from app.models.event import (
     validate_and_consume_access_codes,
     release_access_codes,
 )
+
+CT = {"_csrf_token": CSRF_TOKEN}
 
 
 # ---- Helpers ----
@@ -194,11 +197,12 @@ class TestReleaseAccessCodes:
 
 class TestAdminFormParsing:
     def _admin_login(self, client):
-        client.post("/admin/login", data={"password": "testpass"})
+        client.post("/admin/login", data={**CT, "password": "testpass"})
 
     def test_crear_evento_con_codigos(self, client, mock_db):
         self._admin_login(client)
         response = client.post("/admin/event/create", data={
+            **CT,
             "name": "Evento Codigos",
             "description": "Test",
             "date": "2026-08-01T20:00",
@@ -227,6 +231,7 @@ class TestAdminFormParsing:
     def test_crear_evento_con_codigo_reutilizable(self, client, mock_db):
         self._admin_login(client)
         response = client.post("/admin/event/create", data={
+            **CT,
             "name": "Evento Reusable",
             "description": "",
             "date": "2026-08-01T20:00",
@@ -264,6 +269,7 @@ class TestAdminFormParsing:
         response = client.post(
             f"/admin/event/{event['event_id']}/update",
             data={
+                **CT,
                 "name": "Updated",
                 "description": "",
                 "date": "2026-08-01T20:00",
@@ -292,6 +298,7 @@ class TestAdminFormParsing:
     def test_codigos_normalizados_mayusculas_sin_duplicados(self, client, mock_db):
         self._admin_login(client)
         response = client.post("/admin/event/create", data={
+            **CT,
             "name": "Norm Test",
             "description": "",
             "date": "2026-08-01T20:00",
@@ -331,6 +338,7 @@ class TestCheckoutWithReusableCode:
         event = _make_event_with_codes(reusable=True, codes=[{"code": "VIP2026", "used": False}])
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Ana",
             "buyer_last_name": "Garcia",
@@ -348,6 +356,7 @@ class TestCheckoutWithReusableCode:
         event = _make_event_with_codes(reusable=True, codes=[{"code": "VIP2026", "used": False}])
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Ana",
             "buyer_last_name": "Garcia",
@@ -365,6 +374,7 @@ class TestCheckoutWithReusableCode:
         event = _make_event_with_codes(reusable=True, codes=[{"code": "VIP2026", "used": False}])
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Ana",
             "buyer_last_name": "Garcia",
@@ -382,6 +392,7 @@ class TestCheckoutWithReusableCode:
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session",
             data={
+                **CT,
                 "event_id": event["event_id"],
                 "buyer_first_name": "Ana",
                 "buyer_last_name": "Garcia",
@@ -409,6 +420,7 @@ class TestCheckoutWithReusableCode:
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session",
             data={
+                **CT,
                 "event_id": event["event_id"],
                 "buyer_first_name": "Ana",
                 "buyer_last_name": "Garcia",
@@ -437,6 +449,7 @@ class TestCheckoutWithSingleUseCodes:
         tt = event["ticket_types"][0]
         # Two attendees, each with their own code
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Ana",
             "buyer_last_name": "Garcia",
@@ -460,6 +473,7 @@ class TestCheckoutWithSingleUseCodes:
         event = _make_event_with_codes(reusable=False)
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Ana",
             "buyer_last_name": "Garcia",
@@ -484,6 +498,7 @@ class TestCheckoutWithSingleUseCodes:
         tt = event["ticket_types"][0]
         # Requesting 2 tickets but only sending 1 code
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Ana",
             "buyer_last_name": "Garcia",
@@ -512,6 +527,7 @@ class TestCheckoutWithoutAccessCodes:
         event = _make_event_without_codes()
         tt = event["ticket_types"][0]
         response = client.post("/checkout/create-session", data={
+            **CT,
             "event_id": event["event_id"],
             "buyer_first_name": "Juan",
             "buyer_last_name": "Perez",

@@ -1,9 +1,10 @@
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, session, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, session, current_app, jsonify
 
 from app import limiter
 from app.services import event_service, ticket_service
 from app.utils.sanitize import clean, valid_uuid, valid_int, valid_float
+from app.utils.csrf import csrf_protect
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -96,6 +97,7 @@ def _parse_ticket_types(form, existing_event=None):
 
 @admin_bp.route("/admin/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute", methods=["POST"])
+@csrf_protect
 def login():
     if request.method == "POST":
         password = request.form.get("password", "")
@@ -128,6 +130,7 @@ def new_event():
 
 @admin_bp.route("/admin/event/create", methods=["POST"])
 @admin_required
+@csrf_protect
 def create_event():
     currency = clean(request.form.get("currency", "eur"), max_length=3).lower()
     if currency not in VALID_CURRENCIES:
@@ -200,6 +203,7 @@ def edit_event(event_id):
 
 @admin_bp.route("/admin/event/<event_id>/update", methods=["POST"])
 @admin_required
+@csrf_protect
 def update_event(event_id):
     event_id = valid_uuid(event_id)
     if not event_id:
@@ -240,8 +244,47 @@ def update_event(event_id):
     return redirect(url_for("admin.event_detail", event_id=event_id))
 
 
+@admin_bp.route("/admin/import-codes", methods=["POST"])
+@admin_required
+def import_codes():
+    """Parse an Excel file (.xlsx) and return the codes as JSON."""
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"error": "No se ha enviado ningun archivo"}), 400
+
+    filename = file.filename.lower()
+    if not filename.endswith((".xlsx", ".xls")):
+        return jsonify({"error": "Formato no soportado. Usa un archivo Excel (.xlsx)"}), 400
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
+        ws = wb.active
+        codes = []
+        for row in ws.iter_rows(min_col=1, max_col=1, values_only=True):
+            val = row[0]
+            if val is not None:
+                code = str(val).strip().upper()
+                if code:
+                    codes.append(code)
+        wb.close()
+    except Exception:
+        return jsonify({"error": "Error al leer el archivo Excel"}), 400
+
+    # Deduplicate preserving order
+    seen = set()
+    unique_codes = []
+    for c in codes:
+        if c not in seen:
+            seen.add(c)
+            unique_codes.append(c)
+
+    return jsonify({"codes": unique_codes}), 200
+
+
 @admin_bp.route("/admin/event/<event_id>/status", methods=["POST"])
 @admin_required
+@csrf_protect
 def change_status(event_id):
     event_id = valid_uuid(event_id)
     if not event_id:
