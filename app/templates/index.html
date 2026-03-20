@@ -34,8 +34,8 @@
                         <div class="event-card-content">
                             <h2>{{ event.name }}</h2>
                             <div class="event-meta">
-                                <span><span class="meta-icon">&#128197;</span> {{ event.date }}</span>
-                                <span><span class="meta-icon">&#128205;</span> {{ event.venue }}</span>
+                                <span><svg class="meta-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 7h12M5 1v3M11 1v3"/></svg> {{ event.date }}</span>
+                                <span><svg class="meta-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14.5S3 9.5 3 6.5a5 5 0 0110 0c0 3-5 8-5 8z"/><circle cx="8" cy="6.5" r="1.5"/></svg> {{ event.venue }}</span>
                             </div>
                         </div>
                     </div>
@@ -45,6 +45,7 @@
         </div>
     {% else %}
         <div class="no-events">
+            <svg class="no-events-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="36" height="32" rx="4"/><path d="M6 20h36M16 4v8M32 4v8"/></svg>
             <p>No hay eventos disponibles en este momento.</p>
         </div>
     {% endif %}
